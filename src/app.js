@@ -742,6 +742,15 @@ function renderLayoutPane() {
     commit();
   });
   pane.append(el("div", { className: "panel__row" }, [labeled("Entity labels", labelPos)]));
+  const imgPos = el("select", { className: "sel" });
+  for (const [v, label] of [["inside", "Inside the bar end"], ["overlap", "Overlapping the end"], ["outside", "Outside the bar"]]) {
+    imgPos.append(el("option", { value: v, textContent: label, selected: v === (t.bar.imagePosition ?? "inside") }));
+  }
+  imgPos.addEventListener("change", () => {
+    t.bar.imagePosition = imgPos.value;
+    commit();
+  });
+  pane.append(el("div", { className: "panel__row" }, [labeled("Images", imgPos)]));
   for (const [key, label] of [["showRank", "Rank numbers"], ["showValue", "Values"], ["showImage", "Entity images"]]) {
     const cb = el("input", { type: "checkbox", checked: t.bar[key] });
     cb.addEventListener("change", () => {
@@ -863,9 +872,15 @@ function renderThemePane() {
     commit();
   });
   pane.append(el("div", { className: "panel__row" }, [labeled("Mono font stack", fontM)]));
-  const radius = el("input", { className: "field", value: th.vars["--fr-bar-radius"], placeholder: "0–20 or pill" });
+  const radius = el("select", { className: "sel" });
+  const radiusOptions = [["0", "Square"], ["4", "Soft"], ["10", "Round"], ["pill", "Pill"]];
+  const current = String(th.vars["--fr-bar-radius"]);
+  if (!radiusOptions.some(([v]) => v === current)) radiusOptions.push([current, `Custom (${current})`]);
+  for (const [v, label] of radiusOptions) {
+    radius.append(el("option", { value: v, textContent: label, selected: v === current }));
+  }
   radius.addEventListener("change", () => {
-    th.vars["--fr-bar-radius"] = String(radius.value);
+    th.vars["--fr-bar-radius"] = radius.value;
     commit();
   });
   const clock = el("input", { className: "field", type: "number", min: 24, max: 160, value: th.vars["--fr-period-label-size"] });

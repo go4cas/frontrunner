@@ -34,6 +34,11 @@ describe("validateLayout", () => {
     expect(layout.slots.title).toBe(LAYOUTS[0].slots.title);
     expect(layout.slots.clock).toBe("bottom-center");
   });
+  test("imagePosition validates and defaults to inside", () => {
+    expect(validateLayout({}).layout.bar.imagePosition).toBe("inside");
+    expect(validateLayout({ bar: { imagePosition: "overlap" } }).layout.bar.imagePosition).toBe("overlap");
+    expect(validateLayout({ bar: { imagePosition: "orbiting" } }).layout.bar.imagePosition).toBe("inside");
+  });
   test("showImage defaults on and survives round-trip", () => {
     expect(validateLayout({}).layout.bar.showImage).toBe(true);
     expect(validateLayout({ bar: { showImage: false } }).layout.bar.showImage).toBe(false);

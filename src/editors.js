@@ -45,6 +45,7 @@ export function validateLayout(input) {
     showRank: Boolean(bar.showRank ?? d.bar.showRank),
     showValue: Boolean(bar.showValue ?? d.bar.showValue),
     showImage: Boolean(bar.showImage ?? d.bar.showImage),
+    imagePosition: oneOf(bar.imagePosition, ["inside", "overlap", "outside"], d.bar.imagePosition),
   };
 
   const slots = t.slots && typeof t.slots === "object" ? t.slots : {};

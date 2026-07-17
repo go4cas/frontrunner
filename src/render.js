@@ -309,34 +309,46 @@ export class Painter {
     return n;
   }
 
-  /** Position (or hide) the circular image for a bar. Returns the label offset. */
-  _paintImage(n, entity, barEndX, midY) {
+  /** Position (or hide) the circular image for a bar. Returns the label offset.
+   * The disc is INSCRIBED in the bar end — nested inside the pill tip with a
+   * rim of bar color, never protruding past the nose. Bars too short to
+   * contain the disc hide it. */
+  _paintImage(n, entity, barStartX, barEndX, midY) {
     const url = this.layout.bar.showImage ? this.dataset.images?.[entity] : null;
-    if (!url || this.failedImages.has(url)) {
+    const mode = this.layout.bar.imagePosition ?? "inside";
+    const inset = 3;
+    const r = mode === "inside" ? Math.min(this.barH / 2 - inset, 23) : Math.min(this.barH / 2 + 3, 26);
+    // Only "inside" needs the bar to contain the disc; the other modes always fit.
+    const fits = mode !== "inside" || (barEndX - barStartX >= 2 * (r + inset) && r >= 7);
+    if (!url || this.failedImages.has(url) || !fits) {
       n.image.style.display = "none";
       n.disc.style.display = "none";
       n.currentUrl = url ?? null;
-      return 10; // plain-bar label offset
+      return 10;
     }
-    const r = Math.min(this.barH / 2 + 3, 26);
     if (n.currentUrl !== url) {
       n.image.removeAttribute("href"); // reset so a retried URL re-fires the load
       n.image.setAttribute("href", url);
       n.currentUrl = url;
     }
+    const cx =
+      mode === "inside" ? barEndX - r - inset // inscribed in the cap
+      : mode === "overlap" ? barEndX          // straddling the nose
+      : barEndX + r + 6;                      // fully past the nose
     n.image.style.display = "";
     n.disc.style.display = "";
-    n.clipCircle.setAttribute("cx", barEndX);
+    n.clipCircle.setAttribute("cx", cx);
     n.clipCircle.setAttribute("cy", midY);
     n.clipCircle.setAttribute("r", r);
-    n.disc.setAttribute("cx", barEndX);
+    n.disc.setAttribute("cx", cx);
     n.disc.setAttribute("cy", midY);
-    n.disc.setAttribute("r", r);
-    n.image.setAttribute("x", barEndX - r);
+    n.disc.setAttribute("r", r + 1); // hairline rim behind the image
+    n.image.setAttribute("x", cx - r);
     n.image.setAttribute("y", midY - r);
     n.image.setAttribute("width", r * 2);
     n.image.setAttribute("height", r * 2);
-    return r + 12; // labels clear the disc
+    // Label offset: clear whatever the disc occupies beyond the bar end.
+    return mode === "inside" ? 10 : mode === "overlap" ? r + 12 : 2 * r + 16;
   }
 
   /** Paint one frame. state = engine.frameState() output. */
@@ -357,7 +369,7 @@ export class Painter {
       n.rect.setAttribute("d", barPath(x, by, bw, this.barH, this.barRadius));
 
       const midY = by + this.barH / 2;
-      const labelOffset = this._paintImage(n, bar.entity, x + bw, midY);
+      const labelOffset = this._paintImage(n, bar.entity, x, x + bw, midY);
       if (tpl.bar.showRank) {
         n.rank.style.display = "";
         n.rank.setAttribute("x", x - 10);
