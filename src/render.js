@@ -96,18 +96,22 @@ export class Painter {
    * never per frame. Replaces the old chars×7.2px estimate that collided
    * values with long names in inside-label mode. */
   _initMeasure() {
-    this._measureCtx ??= document.createElement("canvas").getContext("2d");
-    const fam =
-      (this.theme?.vars?.["--fr-font-display"] ??
-        getComputedStyle(document.documentElement).getPropertyValue("--fr-font-display")) || "system-ui";
-    this._measureCtx.font = "600 14px " + String(fam).trim();
+    // 2D canvas may be absent (DOM shims, exotic embeds) — fall back to an
+    // estimate rather than crashing the painter.
+    this._measureCtx ??= document.createElement("canvas").getContext?.("2d") ?? null;
+    if (this._measureCtx) {
+      const fam =
+        (this.theme?.vars?.["--fr-font-display"] ??
+          getComputedStyle(document.documentElement).getPropertyValue("--fr-font-display")) || "system-ui";
+      this._measureCtx.font = "600 14px " + String(fam).trim();
+    }
     this._labelW = new Map();
   }
 
   _textW(s) {
     let w = this._labelW.get(s);
     if (w === undefined) {
-      w = this._measureCtx.measureText(s).width;
+      w = this._measureCtx ? this._measureCtx.measureText(s).width : s.length * 7.2;
       this._labelW.set(s, w);
     }
     return w;
