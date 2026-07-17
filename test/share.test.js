@@ -81,10 +81,21 @@ describe("share codec", () => {
   });
 
   test("empty images map is not serialized", async () => {
-    const { blob } = await encodeProject(sampleProject());
-    const back = await decodeProject(blob);
+    // Elision happens in makeProject, so build from an imageless dataset.
+    const { headers, rows } = parseCSV("year,name,v\n1960,X,1\n1970,X,2");
+    const shapeInfo = detectShape(headers, rows);
+    const dataset = normalize(headers, rows, shapeInfo);
+    const project = makeProject({ name: "t", dataset, mapping: shapeInfo, template: LAYOUTS[0], settings: DEFAULT_SETTINGS, theme: THEMES[0], branding: DEFAULT_BRANDING });
+    expect("images" in project.dataset).toBe(false);
+    const back = await decodeProject((await encodeProject(project)).blob);
     expect("images" in back.dataset).toBe(false);
     expect(hydrateDataset(back.dataset).images).toEqual({});
+  });
+
+  test("sample ships with flag images that survive the round-trip", async () => {
+    const { blob } = await encodeProject(sampleProject());
+    const back = await decodeProject(blob);
+    expect(back.dataset.images.China).toContain("flagcdn.com");
   });
 
   test("optional raw CSV travels in the envelope and round-trips", async () => {

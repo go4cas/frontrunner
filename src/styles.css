@@ -718,7 +718,7 @@ label.lbl {
 
 /* ---------- bar borders & shadows (theme vars) ---------- */
 
-.fr-bar rect {
+.fr-bar .fr-barshape {
   stroke: var(--fr-bar-stroke);
   stroke-width: var(--fr-bar-stroke-width);
   filter: var(--fr-bar-shadow);

@@ -83,7 +83,6 @@ export class Painter {
     this._initMeasure(); // font stack may have changed; re-measure labels
     for (const [index, n] of this.nodes) {
       n.rect.setAttribute("fill", entityColor(index, theme.palette));
-      n.rect.setAttribute("rx", Number(theme.vars["--fr-bar-radius"]) || 0);
     }
     this.reflow();
   }
@@ -166,6 +165,7 @@ export class Painter {
     };
     this.slotH = this.plot.h / set.topN;
     this.barH = this.slotH * set.barThickness;
+    this.barRadius = Number(this.theme.vars["--fr-bar-radius"]) || 0;
 
     this._placeBlocks(blocks, bottomReserve);
   }
@@ -263,8 +263,10 @@ export class Painter {
     let n = this.nodes.get(index);
     if (n) return n;
     const g = el("g", { class: "fr-bar" });
-    const rect = el("rect", {
-      rx: Number(this.theme.vars["--fr-bar-radius"]) || 0,
+    // Path, not rect: bars round only their leading (right) end — flat at the
+    // axis, rounded where the race happens. Radius from --fr-bar-radius.
+    const rect = el("path", {
+      class: "fr-barshape",
       fill: entityColor(index, this.theme.palette),
     });
     const rank = el("text", { class: "fr-rank", "text-anchor": "end" });
@@ -342,10 +344,7 @@ export class Painter {
       const bw = Math.max(0, (bar.value / state.axisMax) * w);
       n.g.setAttribute("opacity", bar.opacity.toFixed(3));
       n.g.style.display = "";
-      n.rect.setAttribute("x", x);
-      n.rect.setAttribute("y", by);
-      n.rect.setAttribute("width", bw);
-      n.rect.setAttribute("height", this.barH);
+      n.rect.setAttribute("d", barPath(x, by, bw, this.barH, this.barRadius));
 
       const midY = by + this.barH / 2;
       const labelOffset = this._paintImage(n, bar.entity, x + bw, midY);
@@ -430,3 +429,10 @@ export class Painter {
   }
 }
 
+
+/** Bar outline: flat left edge, leading (right) corners rounded by r. */
+function barPath(x, y, w, h, r) {
+  const rr = Math.max(0, Math.min(r, h / 2, w));
+  if (rr === 0 || w <= 0) return `M${x},${y}h${w}v${h}h${-w}Z`;
+  return `M${x},${y}h${w - rr}q${rr},0 ${rr},${rr}v${h - 2 * rr}q0,${rr} ${-rr},${rr}h${-(w - rr)}Z`;
+}

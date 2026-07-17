@@ -132,6 +132,13 @@ export const THEMES = [
 ];
 
 // Sample: world population by country, 1960–2020 by decade (approximate, millions × 1e6).
+// Flag URLs demo the image-column auto-detection; offline they degrade silently.
+const FLAGS = {
+  China: "cn", India: "in", "United States": "us", Indonesia: "id", Pakistan: "pk",
+  Brazil: "br", Nigeria: "ng", Bangladesh: "bd", Russia: "ru", Japan: "jp",
+  Mexico: "mx", Germany: "de", Philippines: "ph", Ethiopia: "et",
+};
+
 const SAMPLE = {
   periods: [1960, 1970, 1980, 1990, 2000, 2010, 2020],
   rows: {
@@ -153,11 +160,12 @@ const SAMPLE = {
 };
 
 export function sampleCSV() {
-  const lines = ["year,country,population"];
+  const lines = ["year,country,population,flag"];
   for (const [country, vals] of Object.entries(SAMPLE.rows)) {
+    const flag = `https://flagcdn.com/w160/${FLAGS[country]}.png`;
     SAMPLE.periods.forEach((year, i) => {
       const name = country.includes(",") ? `"${country}"` : country;
-      lines.push(`${year},${name},${vals[i] * 1_000_000}`);
+      lines.push(`${year},${name},${vals[i] * 1_000_000},${flag}`);
     });
   }
   return lines.join("\n");

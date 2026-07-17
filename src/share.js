@@ -19,7 +19,7 @@ export function makeProject({ name, dataset, mapping, layout, settings, theme, b
       periods: dataset.periods,
       entities: dataset.entities,
       values: Array.from(dataset.values, (v) => (Number.isNaN(v) ? null : v)),
-      images: dataset.images && Object.keys(dataset.images).length ? dataset.images : undefined,
+      ...(dataset.images && Object.keys(dataset.images).length ? { images: dataset.images } : {}),
       meta: dataset.meta,
     },
     mapping,
