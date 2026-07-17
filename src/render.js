@@ -300,7 +300,7 @@ export class Painter {
 
   /** Position (or hide) the circular image for a bar. Returns the label offset. */
   _paintImage(n, entity, barEndX, midY) {
-    const url = this.template.bar.showImage ? this.dataset.images?.[entity] : null;
+    const url = this.layout.bar.showImage ? this.dataset.images?.[entity] : null;
     if (!url || this.failedImages.has(url)) {
       n.image.style.display = "none";
       n.disc.style.display = "none";
