@@ -73,6 +73,11 @@ export class Painter {
     this.reflow();
   }
 
+  /** Forget a failed URL so the next paint retries it (called on URL edits). */
+  retryImage(url) {
+    if (url) this.failedImages.delete(url);
+  }
+
   setBranding(branding) {
     this.branding = branding ?? {};
     this.reflow();
@@ -288,7 +293,10 @@ export class Painter {
     });
     image.addEventListener("error", () => {
       const url = image.getAttribute("href");
-      if (url) this.failedImages.add(url);
+      if (url && !this.failedImages.has(url)) {
+        this.failedImages.add(url);
+        console.info(`frontrunner: image failed to load, showing plain bar — ${url}`);
+      }
       image.style.display = "none";
       disc.style.display = "none";
     });
@@ -311,6 +319,7 @@ export class Painter {
     }
     const r = Math.min(this.barH / 2 + 3, 26);
     if (n.currentUrl !== url) {
+      n.image.removeAttribute("href"); // reset so a retried URL re-fires the load
       n.image.setAttribute("href", url);
       n.currentUrl = url;
     }

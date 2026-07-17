@@ -561,13 +561,20 @@ function renderDataPane() {
     imgWrap.textContent = "";
     for (const entity of ds.entities) {
       const input = el("input", { className: "field", value: ds.images[entity] ?? "", placeholder: "https://…" });
-      input.addEventListener("change", () => {
+      // Commit as-you-type (debounced) — blur is not required. Editing a URL
+      // also clears it from the failed-image blacklist so it retries.
+      const commitUrl = store.debounce(() => {
         const v = input.value.trim();
+        const prev = ds.images[entity];
         if (v) ds.images[entity] = v;
         else delete ds.images[entity];
-        state.painter?.reflow();
-        touch();
-      });
+        state.painter?.retryImage(prev);
+        state.painter?.retryImage(v);
+        repaint();
+        autosave();
+      }, 400);
+      input.addEventListener("input", commitUrl);
+      input.addEventListener("change", commitUrl);
       imgWrap.append(el("div", { className: "panel__row" }, [labeled(entity, input)]));
     }
   };
