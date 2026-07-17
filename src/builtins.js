@@ -14,21 +14,21 @@ export const LAYOUTS = [
     name: "Classic race",
     type: "bar-race",
     bar: { labelPosition: "outside", showRank: true, showValue: true, showImage: true, imagePosition: "inside" },
-    slots: { title: "top-left", logo: "top-right", clock: "bottom-right", total: "off", source: "bottom-left", axis: "top" },
+    slots: { title: "top-left", logo: "top-right", clock: "bottom-right", total: "off", source: "bottom-left", legend: "top-center", axis: "top" },
   },
   {
     id: "dense",
     name: "Dense field",
     type: "bar-race",
     bar: { labelPosition: "inside", showRank: true, showValue: true, showImage: true, imagePosition: "inside" },
-    slots: { title: "top-left", logo: "top-right", clock: "bottom-right", total: "bottom-right", source: "bottom-left", axis: "off" },
+    slots: { title: "top-left", logo: "top-right", clock: "bottom-right", total: "bottom-right", source: "bottom-left", legend: "top-center", axis: "off" },
   },
   {
     id: "broadcast",
     name: "Broadcast",
     type: "bar-race",
     bar: { labelPosition: "outside", showRank: false, showValue: true, showImage: true, imagePosition: "inside" },
-    slots: { title: "top-center", logo: "off", clock: "bottom-center", total: "off", source: "bottom-left", axis: "off" },
+    slots: { title: "top-center", logo: "off", clock: "bottom-center", total: "off", source: "bottom-left", legend: "off", axis: "off" },
   },
 ];
 
@@ -133,6 +133,12 @@ export const THEMES = [
 
 // Sample: world population by country, 1960–2020 by decade (approximate, millions × 1e6).
 // Flag URLs demo the image-column auto-detection; offline they degrade silently.
+const CONTINENTS = {
+  China: "Asia", India: "Asia", "United States": "Americas", Indonesia: "Asia", Pakistan: "Asia",
+  Brazil: "Americas", Nigeria: "Africa", Bangladesh: "Asia", Russia: "Europe", Japan: "Asia",
+  Mexico: "Americas", Germany: "Europe", Philippines: "Asia", Ethiopia: "Africa",
+};
+
 const FLAGS = {
   China: "cn", India: "in", "United States": "us", Indonesia: "id", Pakistan: "pk",
   Brazil: "br", Nigeria: "ng", Bangladesh: "bd", Russia: "ru", Japan: "jp",
@@ -160,12 +166,12 @@ const SAMPLE = {
 };
 
 export function sampleCSV() {
-  const lines = ["year,country,population,flag"];
+  const lines = ["year,country,population,flag,continent"];
   for (const [country, vals] of Object.entries(SAMPLE.rows)) {
     const flag = `https://flagcdn.com/w160/${FLAGS[country]}.png`;
     SAMPLE.periods.forEach((year, i) => {
       const name = country.includes(",") ? `"${country}"` : country;
-      lines.push(`${year},${name},${vals[i] * 1_000_000},${flag}`);
+      lines.push(`${year},${name},${vals[i] * 1_000_000},${flag},${CONTINENTS[country]}`);
     });
   }
   return lines.join("\n");

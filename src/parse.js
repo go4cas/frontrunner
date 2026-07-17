@@ -149,13 +149,20 @@ export function detectShape(headers, rows) {
   if (temporalHeaders.length >= 2) {
     const nonTemporal = headers.filter((h) => !temporalType(h));
     const entity = nonTemporal[0] ?? headers[0];
+    const sample500 = rows.slice(0, 500);
     const image = nonTemporal.find(
-      (h) => h !== entity && fractionUrlish(columnValues(rows.slice(0, 500), headers.indexOf(h))) > 0.8
+      (h) => h !== entity && fractionUrlish(columnValues(sample500, headers.indexOf(h))) > 0.8
     );
+    const category = nonTemporal.find((h) => {
+      if (h === entity || h === image) return false;
+      const vals = columnValues(sample500, headers.indexOf(h));
+      const d = distinct(vals.filter((v) => v !== ""));
+      return fractionNumeric(vals) < 0.5 && fractionUrlish(vals) < 0.5 && d >= 2 && d <= 12 && d <= rows.length;
+    });
     return {
       shape: "wide",
       confidence: 0.95,
-      mapping: { entity, periods: temporalHeaders, image: image ?? null },
+      mapping: { entity, periods: temporalHeaders, image: image ?? null, category: category ?? null },
     };
   }
 
@@ -193,6 +200,14 @@ export function detectShape(headers, rows) {
 
   const ok = time && entity && value;
   const image = stats.find((s) => s !== time && s !== entity && s !== value && s.urlish > 0.8);
+  // Category: a low-cardinality string column that isn't anything else —
+  // e.g. continent, sector, party. 2–12 distinct values, each repeated.
+  const category = stats.find(
+    (s) =>
+      s !== time && s !== entity && s !== value && s !== image &&
+      s.numeric < 0.5 && s.urlish < 0.5 && s.temporal < 0.5 &&
+      s.distinct >= 2 && s.distinct <= 12 && s.distinct <= (entity?.distinct ?? Infinity)
+  );
   return {
     shape: "long",
     confidence: ok ? Math.min(1, 0.5 + time.temporal * 0.3 + value.numeric * 0.2) : 0.2,
@@ -201,6 +216,7 @@ export function detectShape(headers, rows) {
       entity: entity?.header ?? headers[1] ?? headers[0],
       value: value?.header ?? headers[2] ?? headers[headers.length - 1],
       image: image?.header ?? null,
+      category: category?.header ?? null,
     },
   };
 }
@@ -223,11 +239,13 @@ export function normalize(headers, rows, shapeInfo) {
   const idxOf = (h) => headers.indexOf(h);
 
   const images = {};
+  const categories = {};
   let periods, entities, get; // get(pIdx, eIdx) -> raw string
   if (shapeInfo.shape === "wide") {
-    const { entity, periods: periodHeaders, image } = shapeInfo.mapping;
+    const { entity, periods: periodHeaders, image, category } = shapeInfo.mapping;
     const eIdx = idxOf(entity);
     const imgIdx = image ? idxOf(image) : -1;
+    const catIdx = category ? idxOf(category) : -1;
     periods = sortPeriods(periodHeaders);
     entities = [];
     const rowOf = new Map();
@@ -240,15 +258,20 @@ export function normalize(headers, rows, shapeInfo) {
         const url = (r[imgIdx] ?? "").trim();
         if (url) images[name] = url;
       }
+      if (catIdx >= 0) {
+        const cat = (r[catIdx] ?? "").trim();
+        if (cat) categories[name] = cat;
+      }
     }
     const pIdx = periods.map((p) => idxOf(p));
     get = (pi, ei) => rowOf.get(entities[ei])[pIdx[pi]];
   } else {
-    const { time, entity, value, image } = shapeInfo.mapping;
+    const { time, entity, value, image, category } = shapeInfo.mapping;
     const tIdx = idxOf(time);
     const eIdx = idxOf(entity);
     const vIdx = idxOf(value);
     const imgIdx = image ? idxOf(image) : -1;
+    const catIdx = category ? idxOf(category) : -1;
     const periodSet = [];
     const seenP = new Set();
     entities = [];
@@ -270,6 +293,10 @@ export function normalize(headers, rows, shapeInfo) {
       if (imgIdx >= 0) {
         const url = (r[imgIdx] ?? "").trim();
         if (url) images[e] = url; // last non-empty wins
+      }
+      if (catIdx >= 0) {
+        const cat = (r[catIdx] ?? "").trim();
+        if (cat) categories[e] = cat;
       }
     }
     periods = sortPeriods(periodSet);
@@ -301,6 +328,7 @@ export function normalize(headers, rows, shapeInfo) {
     entities,
     values,
     images, // entity → image URL (may be empty)
+    categories, // entity → category (may be empty; drives palette-by-category)
     meta: { source: "csv", shape: shapeInfo.shape },
     warnings,
   };

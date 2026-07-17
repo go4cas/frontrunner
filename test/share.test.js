@@ -98,6 +98,13 @@ describe("share codec", () => {
     expect(back.dataset.images.China).toContain("flagcdn.com");
   });
 
+  test("categories travel in the envelope and hydrate", async () => {
+    const { blob } = await encodeProject(sampleProject());
+    const back = await decodeProject(blob);
+    expect(back.dataset.categories.China).toBe("Asia");
+    expect(hydrateDataset(back.dataset).categories.Russia).toBe("Europe");
+  });
+
   test("optional raw CSV travels in the envelope and round-trips", async () => {
     const project = sampleProject();
     project.raw = { csv: "year,country,population\n1960,China,667000000" };

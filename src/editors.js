@@ -50,7 +50,7 @@ export function validateLayout(input) {
 
   const slots = t.slots && typeof t.slots === "object" ? t.slots : {};
   t.slots = {};
-  for (const key of ["title", "logo", "clock", "total", "source"]) {
+  for (const key of ["title", "logo", "clock", "total", "source", "legend"]) {
     t.slots[key] = oneOf(slots[key], ANCHORS, d.slots[key]);
   }
   t.slots.axis = oneOf(slots.axis, ["top", "off"], d.slots.axis);

@@ -95,6 +95,23 @@ describe("painter smoke (happy-dom)", () => {
     expect(visibleBars(svg).length).toBeGreaterThan(0);
   });
 
+  test("categories drive shared colors and a visible legend", () => {
+    svg = makeSvg(document);
+    const p = new Painter(svg, ds, structuredClone(LAYOUTS[0]), structuredClone(DEFAULT_SETTINGS), structuredClone(THEMES[0]), {});
+    p.paint(frameState(ds, pre, DEFAULT_SETTINGS, 6));
+    // China and India share a continent → identical bar fills
+    const fillOf = (name) =>
+      [...svg.querySelectorAll("g.fr-bar")]
+        .find((g) => g.querySelector(".fr-label")?.textContent === name)
+        ?.querySelector(".fr-barshape")
+        ?.getAttribute("fill");
+    expect(fillOf("China")).toBe(fillOf("India"));
+    expect(fillOf("China")).not.toBe(fillOf("Russia"));
+    // Legend renders one label per category
+    const legendLabels = [...svg.querySelectorAll(".fr-legend-label")].map((n) => n.textContent);
+    expect(legendLabels).toEqual(["Asia", "Americas", "Africa", "Europe"]);
+  });
+
   test("branding blocks render when content exists and collapse when empty", () => {
     svg = makeSvg(document);
     const branding = { title: "The Race", subtitle: "sub", source: "Data: X", link: "https://x.test", logoUrl: "" };

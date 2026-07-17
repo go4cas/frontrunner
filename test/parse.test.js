@@ -64,7 +64,7 @@ describe("shape detection", () => {
     const { headers, rows } = parseCSV(LONG);
     const info = detectShape(headers, rows);
     expect(info.shape).toBe("long");
-    expect(info.mapping).toEqual({ time: "year", entity: "country", value: "population", image: null });
+    expect(info.mapping).toEqual({ time: "year", entity: "country", value: "population", image: null, category: null });
   });
   test("wide format", () => {
     const { headers, rows } = parseCSV(WIDE);
@@ -143,5 +143,39 @@ describe("image column", () => {
     const { headers, rows } = parseCSV(csv);
     const ds = normalize(headers, rows, detectShape(headers, rows));
     expect(ds.images.China).toBe("https://x/new.png");
+  });
+});
+
+
+describe("category column", () => {
+  const CSV = "year,country,pop,continent\n1960,China,10,Asia\n1960,Brazil,5,Americas\n1970,China,20,Asia\n1970,Brazil,9,Americas\n1970,Nigeria,3,Africa";
+  test("long format: low-cardinality string column auto-detected", () => {
+    const { headers, rows } = parseCSV(CSV);
+    const info = detectShape(headers, rows);
+    expect(info.mapping.category).toBe("continent");
+    const ds = normalize(headers, rows, info);
+    expect(ds.categories).toEqual({ China: "Asia", Brazil: "Americas", Nigeria: "Africa" });
+  });
+  test("no candidate → category null, categories empty", () => {
+    const csv = "year,country,pop\n1960,China,10\n1970,China,20";
+    const { headers, rows } = parseCSV(csv);
+    const info = detectShape(headers, rows);
+    expect(info.mapping.category).toBe(null);
+    expect(normalize(headers, rows, info).categories).toEqual({});
+  });
+  test("wide format: category detected among non-temporal columns", () => {
+    const csv = "country,continent,1960,1970\nChina,Asia,10,20\nBrazil,Americas,5,9\nNigeria,Africa,1,3";
+    const { headers, rows } = parseCSV(csv);
+    const info = detectShape(headers, rows);
+    expect(info.mapping.category).toBe("continent");
+    expect(normalize(headers, rows, info).categories.Nigeria).toBe("Africa");
+  });
+  test("sample dataset carries continents", () => {
+    const { headers, rows } = parseCSV(require("../src/builtins.js").sampleCSV());
+    const info = detectShape(headers, rows);
+    expect(info.mapping.category).toBe("continent");
+    const ds = normalize(headers, rows, info);
+    expect(ds.categories.China).toBe("Asia");
+    expect(ds.categories.Nigeria).toBe("Africa");
   });
 });

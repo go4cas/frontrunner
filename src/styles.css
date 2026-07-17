@@ -754,3 +754,12 @@ label.lbl {
 }
 
 .fr-source-link[href] .fr-source { fill: var(--fr-accent); cursor: pointer; }
+
+/* ---------- category legend ---------- */
+
+.fr-legend-label {
+  font-family: var(--fr-font-display);
+  font-size: 12px;
+  fill: var(--fr-text-muted);
+  dominant-baseline: middle;
+}

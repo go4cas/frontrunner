@@ -44,6 +44,9 @@ export class Painter {
     this.height = 0;
 
     this._initMeasure();
+    // Category order of first appearance drives palette-by-category.
+    this.catList = [...new Set(dataset.entities.map((e) => dataset.categories?.[e]).filter(Boolean))];
+
     svg.textContent = "";
     this.gAxis = el("g", { class: "fr-axis" });
     this.gBars = el("g", { class: "fr-bars" });
@@ -58,7 +61,8 @@ export class Painter {
     this.sourceLink = el("a", { class: "fr-source-link", target: "_blank", rel: "noopener" });
     this.sourceText = el("text", { class: "fr-source" });
     this.sourceLink.append(this.sourceText);
-    this.gBlocks.append(this.titleText, this.subtitleText, this.logoImage, this.periodText, this.totalText, this.sourceLink);
+    this.gLegend = el("g", { class: "fr-legend" });
+    this.gBlocks.append(this.titleText, this.subtitleText, this.logoImage, this.periodText, this.totalText, this.sourceLink, this.gLegend);
 
     this.resize();
   }
@@ -83,11 +87,22 @@ export class Painter {
     this.reflow();
   }
 
+  /** Entity color: by category when categories exist, else by entity order. */
+  _colorFor(index) {
+    if (this.catList.length) {
+      const cat = this.dataset.categories?.[this.dataset.entities[index]];
+      const ci = this.catList.indexOf(cat);
+      if (ci >= 0) return entityColor(ci, this.theme.palette);
+    }
+    return entityColor(index, this.theme.palette);
+  }
+
   setTheme(theme) {
     this.theme = theme;
     this._initMeasure(); // font stack may have changed; re-measure labels
     for (const [index, n] of this.nodes) {
-      n.rect.setAttribute("fill", entityColor(index, theme.palette));
+      n.rect.setAttribute("fill", this._colorFor(index));
+      n.disc.setAttribute("fill", this._colorFor(index));
     }
     this.reflow();
   }
@@ -146,6 +161,9 @@ export class Painter {
     if (slots.source !== "off" && (b.source || b.link)) {
       out.push({ id: "source", anchor: slots.source, h: SOURCE_H, reserves: true });
     }
+    if (slots.legend !== "off" && this.catList.length) {
+      out.push({ id: "legend", anchor: slots.legend, h: 24, reserves: true });
+    }
     return out;
   }
 
@@ -195,6 +213,7 @@ export class Painter {
     for (const node of [this.titleText, this.subtitleText, this.logoImage, this.periodText, this.totalText, this.sourceText]) {
       node.style.display = "none";
     }
+    this.gLegend.textContent = ""; // rebuilt only if the legend block is live
 
     // Stack cursors per anchor. Top stacks grow downward from the margin;
     // bottom stacks grow upward from above the reserved footer.
@@ -256,6 +275,21 @@ export class Painter {
         this.totalText.setAttribute("x", x);
         this.totalText.setAttribute("y", y + TOTAL_H - 6);
         this.totalText.setAttribute("text-anchor", ta);
+      } else if (block.id === "legend") {
+        this.gLegend.textContent = "";
+        const SW = 11; // swatch size
+        const GAP_ITEM = 18;
+        const GAP_SWATCH = 6;
+        const widths = this.catList.map((c) => SW + GAP_SWATCH + this._textW(c) * 0.86 + GAP_ITEM);
+        const total = widths.reduce((a, w) => a + w, -GAP_ITEM);
+        let lx = ta === "start" ? x : ta === "middle" ? x - total / 2 : x - total;
+        this.catList.forEach((cat, ci) => {
+          const sw = el("rect", { x: lx, y: y + 6, width: SW, height: SW, rx: 3, fill: entityColor(ci, this.theme.palette) });
+          const label = el("text", { class: "fr-legend-label", x: lx + SW + GAP_SWATCH, y: y + 15 });
+          label.textContent = cat;
+          this.gLegend.append(sw, label);
+          lx += widths[ci];
+        });
       } else if (block.id === "source") {
         this.sourceText.style.display = "";
         this.sourceText.setAttribute("x", x);
@@ -277,7 +311,7 @@ export class Painter {
     // axis, rounded where the race happens. Radius from --fr-bar-radius.
     const rect = el("path", {
       class: "fr-barshape",
-      fill: entityColor(index, this.theme.palette),
+      fill: this._colorFor(index),
     });
     const rank = el("text", { class: "fr-rank", "text-anchor": "end" });
     const label = el("text", { class: "fr-label" });
@@ -290,7 +324,7 @@ export class Painter {
     const clip = el("clipPath", { id: clipId });
     const clipCircle = el("circle");
     clip.append(clipCircle);
-    const disc = el("circle", { class: "fr-img-disc", fill: entityColor(index, this.theme.palette) });
+    const disc = el("circle", { class: "fr-img-disc", fill: this._colorFor(index) });
     const image = el("image", {
       class: "fr-img",
       "clip-path": `url(#${clipId})`,

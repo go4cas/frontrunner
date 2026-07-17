@@ -43,6 +43,11 @@ describe("validateLayout", () => {
     expect(validateLayout({}).layout.bar.showImage).toBe(true);
     expect(validateLayout({ bar: { showImage: false } }).layout.bar.showImage).toBe(false);
   });
+  test("legend slot validates like the other placeholders", () => {
+    expect(validateLayout({}).layout.slots.legend).toBe("top-center");
+    expect(validateLayout({ slots: { legend: "bottom-left" } }).layout.slots.legend).toBe("bottom-left");
+    expect(validateLayout({ slots: { legend: "everywhere" } }).layout.slots.legend).toBe("top-center");
+  });
   test("axis only accepts top or off", () => {
     const { layout } = validateLayout({ slots: { axis: "bottom-left" } });
     expect(layout.slots.axis).toBe(LAYOUTS[0].slots.axis);

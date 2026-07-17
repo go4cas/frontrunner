@@ -297,6 +297,27 @@ function renderMapping() {
   shapeWrap.append(shapeLabel, shapeSel);
   grid.append(shapeWrap);
 
+  const mkOptionalSelect = (labelText, key) => {
+    const wrap = document.createElement("div");
+    const label = document.createElement("label");
+    label.className = "lbl";
+    label.textContent = labelText;
+    const sel = document.createElement("select");
+    sel.className = "sel";
+    for (const o of ["— none", ...headers]) {
+      const opt = document.createElement("option");
+      opt.value = o === "— none" ? "" : o;
+      opt.textContent = o;
+      if ((info.mapping[key] ?? "") === opt.value) opt.selected = true;
+      sel.append(opt);
+    }
+    sel.addEventListener("change", () => {
+      info.mapping[key] = sel.value || null;
+    });
+    wrap.append(label, sel);
+    grid.append(wrap);
+  };
+
   const mkImageSelect = () => {
     const wrap = document.createElement("div");
     const label = document.createElement("label");
@@ -323,6 +344,7 @@ function renderMapping() {
     mkSelect("Entity column", "entity", headers, info.mapping.entity);
     mkSelect("Value column", "value", headers, info.mapping.value);
     mkImageSelect();
+    mkOptionalSelect("Category column", "category");
   } else {
     mkSelect("Entity column", "entity", headers, info.mapping.entity);
     const note = document.createElement("div");
@@ -330,6 +352,7 @@ function renderMapping() {
     note.innerHTML = `<label class="lbl">Period columns</label><span style="font-family:var(--fr-font-mono);font-size:12px">${periods.length} detected (${periods[0]} … ${periods[periods.length - 1]})</span>`;
     grid.append(note);
     mkImageSelect();
+    mkOptionalSelect("Category column", "category");
   }
 
   const table = $("preview-table");
@@ -359,13 +382,13 @@ function reshape(shape, headers) {
     return {
       shape: "wide",
       confidence: 0.5,
-      mapping: { entity: nonTemporal[0] ?? headers[0], periods: temporal.length ? temporal : headers.slice(1), image: null },
+      mapping: { entity: nonTemporal[0] ?? headers[0], periods: temporal.length ? temporal : headers.slice(1), image: null, category: null },
     };
   }
   return {
     shape: "long",
     confidence: 0.5,
-    mapping: { time: headers[0], entity: headers[1] ?? headers[0], value: headers[2] ?? headers[headers.length - 1], image: null },
+    mapping: { time: headers[0], entity: headers[1] ?? headers[0], value: headers[2] ?? headers[headers.length - 1], image: null, category: null },
   };
 }
 
@@ -552,6 +575,10 @@ function renderDataPane() {
     }),
     el("p", { className: "panel__stat", innerHTML: `shape: <b>${ds.meta.shape ?? "?"}</b>` })
   );
+  const cats = [...new Set(Object.values(ds.categories ?? {}))];
+  if (cats.length) {
+    pane.append(el("p", { className: "panel__stat", innerHTML: `<b>${cats.length}</b> categories: ${cats.join(", ")}` }));
+  }
   // Entity images: URL per entity, edited live. Broken URLs degrade to plain bars.
   pane.append(el("hr", { className: "panel__hr" }), el("p", { className: "panel__section", textContent: "Entity images" }));
   ds.images ??= {};
@@ -712,6 +739,7 @@ function renderLayoutPane() {
     clock: "Period clock",
     total: "Running total",
     source: "Source & link",
+    legend: "Category legend",
   };
   for (const [slot, label] of Object.entries(slotNames)) {
     const sel = el("select", { className: "sel" });
