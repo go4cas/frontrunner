@@ -5,9 +5,10 @@
   "description": "Bar chart races from a CSV. One HTML file, zero dependencies.",
   "type": "module",
   "scripts": {
-    "build": "bun run build.ts",
+    "build": "bun run scripts/build.ts",
     "test": "bun test",
-    "serve": "bun run serve.ts"
+    "serve": "bun run scripts/serve.ts",
+    "deploy": "bun run scripts/deploy.ts"
   },
   "license": "MIT"
 }
