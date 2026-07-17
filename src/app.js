@@ -296,16 +296,39 @@ function renderMapping() {
   shapeWrap.append(shapeLabel, shapeSel);
   grid.append(shapeWrap);
 
+  const mkImageSelect = () => {
+    const wrap = document.createElement("div");
+    const label = document.createElement("label");
+    label.className = "lbl";
+    label.textContent = "Image URL column";
+    const sel = document.createElement("select");
+    sel.className = "sel";
+    for (const o of ["— none", ...headers]) {
+      const opt = document.createElement("option");
+      opt.value = o === "— none" ? "" : o;
+      opt.textContent = o;
+      if ((info.mapping.image ?? "") === opt.value) opt.selected = true;
+      sel.append(opt);
+    }
+    sel.addEventListener("change", () => {
+      info.mapping.image = sel.value || null;
+    });
+    wrap.append(label, sel);
+    grid.append(wrap);
+  };
+
   if (info.shape === "long") {
     mkSelect("Time column", "time", headers, info.mapping.time);
     mkSelect("Entity column", "entity", headers, info.mapping.entity);
     mkSelect("Value column", "value", headers, info.mapping.value);
+    mkImageSelect();
   } else {
     mkSelect("Entity column", "entity", headers, info.mapping.entity);
     const note = document.createElement("div");
     const periods = info.mapping.periods;
     note.innerHTML = `<label class="lbl">Period columns</label><span style="font-family:var(--fr-font-mono);font-size:12px">${periods.length} detected (${periods[0]} … ${periods[periods.length - 1]})</span>`;
     grid.append(note);
+    mkImageSelect();
   }
 
   const table = $("preview-table");
@@ -335,13 +358,13 @@ function reshape(shape, headers) {
     return {
       shape: "wide",
       confidence: 0.5,
-      mapping: { entity: nonTemporal[0] ?? headers[0], periods: temporal.length ? temporal : headers.slice(1) },
+      mapping: { entity: nonTemporal[0] ?? headers[0], periods: temporal.length ? temporal : headers.slice(1), image: null },
     };
   }
   return {
     shape: "long",
     confidence: 0.5,
-    mapping: { time: headers[0], entity: headers[1] ?? headers[0], value: headers[2] ?? headers[headers.length - 1] },
+    mapping: { time: headers[0], entity: headers[1] ?? headers[0], value: headers[2] ?? headers[headers.length - 1], image: null },
   };
 }
 
@@ -528,6 +551,36 @@ function renderDataPane() {
     }),
     el("p", { className: "panel__stat", innerHTML: `shape: <b>${ds.meta.shape ?? "?"}</b>` })
   );
+  // Entity images: URL per entity, edited live. Broken URLs degrade to plain bars.
+  pane.append(el("hr", { className: "panel__hr" }), el("p", { className: "panel__section", textContent: "Entity images" }));
+  ds.images ??= {};
+  const hasAny = Object.keys(ds.images).length > 0;
+  const imgWrap = el("div");
+  imgWrap.style.display = hasAny ? "" : "none";
+  const renderImageInputs = () => {
+    imgWrap.textContent = "";
+    for (const entity of ds.entities) {
+      const input = el("input", { className: "field", value: ds.images[entity] ?? "", placeholder: "https://…" });
+      input.addEventListener("change", () => {
+        const v = input.value.trim();
+        if (v) ds.images[entity] = v;
+        else delete ds.images[entity];
+        state.painter?.reflow();
+        touch();
+      });
+      imgWrap.append(el("div", { className: "panel__row" }, [labeled(entity, input)]));
+    }
+  };
+  const imgToggle = el("button", { className: "link", textContent: hasAny ? "Hide image URLs" : "Add image URLs per entity" });
+  imgToggle.addEventListener("click", () => {
+    const opening = imgWrap.style.display === "none";
+    imgWrap.style.display = opening ? "" : "none";
+    imgToggle.textContent = opening ? "Hide image URLs" : "Add image URLs per entity";
+    if (opening) renderImageInputs();
+  });
+  if (hasAny) renderImageInputs();
+  pane.append(imgToggle, imgWrap);
+
   if (state.parsed) {
     const btn = el("button", { className: "btn", textContent: "Edit mapping" });
     btn.addEventListener("click", () => {
@@ -681,7 +734,7 @@ function renderLayoutPane() {
     commit();
   });
   pane.append(el("div", { className: "panel__row" }, [labeled("Entity labels", labelPos)]));
-  for (const [key, label] of [["showRank", "Rank numbers"], ["showValue", "Values"]]) {
+  for (const [key, label] of [["showRank", "Rank numbers"], ["showValue", "Values"], ["showImage", "Entity images"]]) {
     const cb = el("input", { type: "checkbox", checked: t.bar[key] });
     cb.addEventListener("change", () => {
       t.bar[key] = cb.checked;

@@ -34,6 +34,10 @@ describe("validateLayout", () => {
     expect(layout.slots.title).toBe(LAYOUTS[0].slots.title);
     expect(layout.slots.clock).toBe("bottom-center");
   });
+  test("showImage defaults on and survives round-trip", () => {
+    expect(validateLayout({}).layout.bar.showImage).toBe(true);
+    expect(validateLayout({ bar: { showImage: false } }).layout.bar.showImage).toBe(false);
+  });
   test("axis only accepts top or off", () => {
     const { layout } = validateLayout({ slots: { axis: "bottom-left" } });
     expect(layout.slots.axis).toBe(LAYOUTS[0].slots.axis);

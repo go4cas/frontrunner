@@ -71,6 +71,22 @@ describe("share codec", () => {
     await expect(decodeProject(blob.slice(0, Math.floor(blob.length / 2)))).rejects.toThrow();
   });
 
+  test("entity images travel in the envelope and hydrate", async () => {
+    const project = sampleProject();
+    project.dataset.images = { China: "https://x/cn.png" };
+    const { blob } = await encodeProject(project);
+    const back = await decodeProject(blob);
+    expect(back.dataset.images).toEqual({ China: "https://x/cn.png" });
+    expect(hydrateDataset(back.dataset).images.China).toBe("https://x/cn.png");
+  });
+
+  test("empty images map is not serialized", async () => {
+    const { blob } = await encodeProject(sampleProject());
+    const back = await decodeProject(blob);
+    expect("images" in back.dataset).toBe(false);
+    expect(hydrateDataset(back.dataset).images).toEqual({});
+  });
+
   test("optional raw CSV travels in the envelope and round-trips", async () => {
     const project = sampleProject();
     project.raw = { csv: "year,country,population\n1960,China,667000000" };

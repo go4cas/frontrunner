@@ -90,6 +90,17 @@ export function parseValue(s) {
   return Number.isFinite(n) ? n : NaN;
 }
 
+const URLISH_RE = /^(https?:\/\/|data:image\/)/i;
+
+/** Fraction of non-empty values in a column that look like image/asset URLs. */
+function fractionUrlish(vals) {
+  const nonEmpty = vals.filter((v) => v !== "");
+  if (nonEmpty.length === 0) return 0;
+  let n = 0;
+  for (const v of nonEmpty) if (URLISH_RE.test(v)) n++;
+  return n / nonEmpty.length;
+}
+
 const YEAR_RE = /^\d{4}$/;
 const YM_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const YMD_RE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
@@ -137,10 +148,14 @@ export function detectShape(headers, rows) {
   const temporalHeaders = headers.filter((h) => temporalType(h));
   if (temporalHeaders.length >= 2) {
     const nonTemporal = headers.filter((h) => !temporalType(h));
+    const entity = nonTemporal[0] ?? headers[0];
+    const image = nonTemporal.find(
+      (h) => h !== entity && fractionUrlish(columnValues(rows.slice(0, 500), headers.indexOf(h))) > 0.8
+    );
     return {
       shape: "wide",
       confidence: 0.95,
-      mapping: { entity: nonTemporal[0] ?? headers[0], periods: temporalHeaders },
+      mapping: { entity, periods: temporalHeaders, image: image ?? null },
     };
   }
 
@@ -153,6 +168,7 @@ export function detectShape(headers, rows) {
       idx,
       numeric: fractionNumeric(vals),
       temporal: fractionTemporal(vals),
+      urlish: fractionUrlish(vals),
       distinct: distinct(vals),
       count: vals.length,
     };
@@ -163,8 +179,9 @@ export function detectShape(headers, rows) {
     .filter((s) => (s.temporal > 0.9 || s.numeric > 0.9) && s.distinct < s.count)
     .sort((a, b) => b.temporal - a.temporal || a.distinct - b.distinct);
   // Entity: mostly non-numeric, repeats, more distinct than time typically.
+  // URL-ish columns are excluded — they're image references, not entities.
   const entityCands = stats
-    .filter((s) => s.numeric < 0.5 && s.distinct > 1)
+    .filter((s) => s.numeric < 0.5 && s.urlish < 0.5 && s.distinct > 1)
     .sort((a, b) => b.distinct - a.distinct);
   // Value: numeric, not the chosen time column, most distinct wins.
   const time = timeCands[0];
@@ -175,6 +192,7 @@ export function detectShape(headers, rows) {
   const value = valueCands[0];
 
   const ok = time && entity && value;
+  const image = stats.find((s) => s !== time && s !== entity && s !== value && s.urlish > 0.8);
   return {
     shape: "long",
     confidence: ok ? Math.min(1, 0.5 + time.temporal * 0.3 + value.numeric * 0.2) : 0.2,
@@ -182,6 +200,7 @@ export function detectShape(headers, rows) {
       time: time?.header ?? headers[0],
       entity: entity?.header ?? headers[1] ?? headers[0],
       value: value?.header ?? headers[2] ?? headers[headers.length - 1],
+      image: image?.header ?? null,
     },
   };
 }
@@ -203,10 +222,12 @@ export function normalize(headers, rows, shapeInfo) {
   const warnings = [];
   const idxOf = (h) => headers.indexOf(h);
 
+  const images = {};
   let periods, entities, get; // get(pIdx, eIdx) -> raw string
   if (shapeInfo.shape === "wide") {
-    const { entity, periods: periodHeaders } = shapeInfo.mapping;
+    const { entity, periods: periodHeaders, image } = shapeInfo.mapping;
     const eIdx = idxOf(entity);
+    const imgIdx = image ? idxOf(image) : -1;
     periods = sortPeriods(periodHeaders);
     entities = [];
     const rowOf = new Map();
@@ -215,14 +236,19 @@ export function normalize(headers, rows, shapeInfo) {
       if (!name || rowOf.has(name)) continue;
       rowOf.set(name, r);
       entities.push(name);
+      if (imgIdx >= 0) {
+        const url = (r[imgIdx] ?? "").trim();
+        if (url) images[name] = url;
+      }
     }
     const pIdx = periods.map((p) => idxOf(p));
     get = (pi, ei) => rowOf.get(entities[ei])[pIdx[pi]];
   } else {
-    const { time, entity, value } = shapeInfo.mapping;
+    const { time, entity, value, image } = shapeInfo.mapping;
     const tIdx = idxOf(time);
     const eIdx = idxOf(entity);
     const vIdx = idxOf(value);
+    const imgIdx = image ? idxOf(image) : -1;
     const periodSet = [];
     const seenP = new Set();
     entities = [];
@@ -241,6 +267,10 @@ export function normalize(headers, rows, shapeInfo) {
         entities.push(e);
       }
       cell.set(p + "\u0000" + e, r[vIdx]);
+      if (imgIdx >= 0) {
+        const url = (r[imgIdx] ?? "").trim();
+        if (url) images[e] = url; // last non-empty wins
+      }
     }
     periods = sortPeriods(periodSet);
     get = (pi, ei) => cell.get(periods[pi] + "\u0000" + entities[ei]);
@@ -270,6 +300,7 @@ export function normalize(headers, rows, shapeInfo) {
     periods,
     entities,
     values,
+    images, // entity → image URL (may be empty)
     meta: { source: "csv", shape: shapeInfo.shape },
     warnings,
   };

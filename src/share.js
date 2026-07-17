@@ -19,6 +19,7 @@ export function makeProject({ name, dataset, mapping, layout, settings, theme, b
       periods: dataset.periods,
       entities: dataset.entities,
       values: Array.from(dataset.values, (v) => (Number.isNaN(v) ? null : v)),
+      images: dataset.images && Object.keys(dataset.images).length ? dataset.images : undefined,
       meta: dataset.meta,
     },
     mapping,
@@ -37,7 +38,13 @@ export function hydrateDataset(projDataset) {
     const v = projDataset.values[i];
     values[i] = v == null ? NaN : v;
   }
-  return { periods: projDataset.periods, entities: projDataset.entities, values, meta: projDataset.meta ?? {} };
+  return {
+    periods: projDataset.periods,
+    entities: projDataset.entities,
+    values,
+    images: projDataset.images ?? {},
+    meta: projDataset.meta ?? {},
+  };
 }
 
 async function streamBytes(bytes, stream) {

@@ -64,7 +64,7 @@ describe("shape detection", () => {
     const { headers, rows } = parseCSV(LONG);
     const info = detectShape(headers, rows);
     expect(info.shape).toBe("long");
-    expect(info.mapping).toEqual({ time: "year", entity: "country", value: "population" });
+    expect(info.mapping).toEqual({ time: "year", entity: "country", value: "population", image: null });
   });
   test("wide format", () => {
     const { headers, rows } = parseCSV(WIDE);
@@ -108,5 +108,40 @@ describe("normalize", () => {
     const { headers, rows } = parseCSV(csv);
     const ds = normalize(headers, rows, { shape: "long", mapping: { time: "year", entity: "country", value: "pop" } });
     expect(ds.periods).toEqual(["1960", "1980", "2000"]);
+  });
+});
+
+
+describe("image column", () => {
+  test("long format: URL column auto-detected and mapped per entity", () => {
+    const csv = "year,country,pop,flag\n1960,China,10,https://x/cn.png\n1970,China,20,https://x/cn.png\n1970,India,5,https://x/in.png";
+    const { headers, rows } = parseCSV(csv);
+    const info = detectShape(headers, rows);
+    expect(info.mapping.image).toBe("flag");
+    const ds = normalize(headers, rows, info);
+    expect(ds.images).toEqual({ China: "https://x/cn.png", India: "https://x/in.png" });
+  });
+  test("wide format: URL column detected among non-temporal columns", () => {
+    const csv = "country,logo,1960,1970\nChina,https://x/cn.png,10,20\nIndia,https://x/in.png,5,7";
+    const { headers, rows } = parseCSV(csv);
+    const info = detectShape(headers, rows);
+    expect(info.shape).toBe("wide");
+    expect(info.mapping.image).toBe("logo");
+    const ds = normalize(headers, rows, info);
+    expect(ds.images.India).toBe("https://x/in.png");
+  });
+  test("no URL column → image null, images empty", () => {
+    const csv = "year,country,pop\n1960,China,10\n1970,China,20";
+    const { headers, rows } = parseCSV(csv);
+    const info = detectShape(headers, rows);
+    expect(info.mapping.image).toBe(null);
+    const ds = normalize(headers, rows, info);
+    expect(ds.images).toEqual({});
+  });
+  test("last non-empty URL wins in long format", () => {
+    const csv = "year,country,pop,flag\n1960,China,10,https://x/old.png\n1970,China,20,https://x/new.png";
+    const { headers, rows } = parseCSV(csv);
+    const ds = normalize(headers, rows, detectShape(headers, rows));
+    expect(ds.images.China).toBe("https://x/new.png");
   });
 });

@@ -39,6 +39,7 @@ export class Painter {
     this.branding = branding ?? {};
     this.nodes = new Map();
     this.tickNodes = [];
+    this.failedImages = new Set(); // URLs that errored — degrade silently, retry only if URL changes
     this.width = 0;
     this.height = 0;
 
@@ -270,11 +271,60 @@ export class Painter {
     const label = el("text", { class: "fr-label" });
     const value = el("text", { class: "fr-value" });
     label.textContent = entity;
-    g.append(rect, rank, label, value);
+
+    // Circular image at the bar end: clipPath + backing disc + <image>.
+    // Created for every bundle, shown only when a URL exists and loads.
+    const clipId = `fr-clip-${index}`;
+    const clip = el("clipPath", { id: clipId });
+    const clipCircle = el("circle");
+    clip.append(clipCircle);
+    const disc = el("circle", { class: "fr-img-disc", fill: entityColor(index, this.theme.palette) });
+    const image = el("image", {
+      class: "fr-img",
+      "clip-path": `url(#${clipId})`,
+      preserveAspectRatio: "xMidYMid slice",
+    });
+    image.addEventListener("error", () => {
+      const url = image.getAttribute("href");
+      if (url) this.failedImages.add(url);
+      image.style.display = "none";
+      disc.style.display = "none";
+    });
+
+    g.append(rect, clip, disc, image, rank, label, value);
     this.gBars.append(g);
-    n = { g, rect, rank, label, value };
+    n = { g, rect, rank, label, value, image, disc, clipCircle, currentUrl: null };
     this.nodes.set(index, n);
     return n;
+  }
+
+  /** Position (or hide) the circular image for a bar. Returns the label offset. */
+  _paintImage(n, entity, barEndX, midY) {
+    const url = this.template.bar.showImage ? this.dataset.images?.[entity] : null;
+    if (!url || this.failedImages.has(url)) {
+      n.image.style.display = "none";
+      n.disc.style.display = "none";
+      n.currentUrl = url ?? null;
+      return 10; // plain-bar label offset
+    }
+    const r = Math.min(this.barH / 2 + 3, 26);
+    if (n.currentUrl !== url) {
+      n.image.setAttribute("href", url);
+      n.currentUrl = url;
+    }
+    n.image.style.display = "";
+    n.disc.style.display = "";
+    n.clipCircle.setAttribute("cx", barEndX);
+    n.clipCircle.setAttribute("cy", midY);
+    n.clipCircle.setAttribute("r", r);
+    n.disc.setAttribute("cx", barEndX);
+    n.disc.setAttribute("cy", midY);
+    n.disc.setAttribute("r", r);
+    n.image.setAttribute("x", barEndX - r);
+    n.image.setAttribute("y", midY - r);
+    n.image.setAttribute("width", r * 2);
+    n.image.setAttribute("height", r * 2);
+    return r + 12; // labels clear the disc
   }
 
   /** Paint one frame. state = engine.frameState() output. */
@@ -298,6 +348,7 @@ export class Painter {
       n.rect.setAttribute("height", this.barH);
 
       const midY = by + this.barH / 2;
+      const labelOffset = this._paintImage(n, bar.entity, x + bw, midY);
       if (tpl.bar.showRank) {
         n.rank.style.display = "";
         n.rank.setAttribute("x", x - 10);
@@ -309,21 +360,21 @@ export class Painter {
 
       const valueText = tpl.bar.showValue ? formatValue(bar.value, fmt) : "";
       if (outside) {
-        n.label.setAttribute("x", x + bw + 10);
+        n.label.setAttribute("x", x + bw + labelOffset);
         n.label.setAttribute("y", midY - (tpl.bar.showValue ? 7 : 0));
         n.label.setAttribute("text-anchor", "start");
         n.label.classList.remove("fr-label--inside");
-        n.value.setAttribute("x", x + bw + 10);
+        n.value.setAttribute("x", x + bw + labelOffset);
         n.value.setAttribute("y", midY + 11);
         n.value.setAttribute("text-anchor", "start");
       } else {
         const labelW = this._textW(bar.entity);
-        const inside = bw > labelW + 28; // label fits inside with breathing room
-        n.label.setAttribute("x", inside ? x + bw - 10 : x + bw + 10);
+        const inside = bw > labelW + 28 + labelOffset; // label fits inside, clear of the disc
+        n.label.setAttribute("x", inside ? x + bw - labelOffset : x + bw + labelOffset);
         n.label.setAttribute("y", midY);
         n.label.setAttribute("text-anchor", inside ? "end" : "start");
         n.label.classList.toggle("fr-label--inside", inside);
-        n.value.setAttribute("x", x + bw + (inside ? 10 : 16 + labelW));
+        n.value.setAttribute("x", x + bw + (inside ? labelOffset : labelOffset + 6 + labelW));
         n.value.setAttribute("y", midY);
         n.value.setAttribute("text-anchor", "start");
       }
