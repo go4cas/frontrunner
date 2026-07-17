@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Test
+        run: bun test
+      - name: Build (includes script-injection guard + inlining checks)
+        run: bun run build
+      - name: Verify the inline bundle parses as valid JS
+        run: |
+          node -e '
+          const fs = require("fs");
+          const html = fs.readFileSync("dist/index.html", "utf8");
+          const open = "<script type=\"module\">";
+          const start = html.indexOf(open) + open.length;
+          const end = html.indexOf("</script>", start);
+          if (start < open.length || end < 0) { console.error("inline bundle not found"); process.exit(1); }
+          fs.writeFileSync("/tmp/bundle.mjs", html.slice(start, end));
+          '
+          node --check /tmp/bundle.mjs
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontrunner
+          path: dist/index.html

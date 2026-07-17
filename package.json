@@ -1,0 +1,13 @@
+{
+  "name": "frontrunner-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Bar chart races from a CSV. One HTML file, zero dependencies.",
+  "type": "module",
+  "scripts": {
+    "build": "bun run build.ts",
+    "test": "bun test",
+    "serve": "bun run serve.ts"
+  },
+  "license": "MIT"
+}

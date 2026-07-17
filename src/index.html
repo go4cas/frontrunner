@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>frontrunner — bar chart races from a CSV</title>
+<meta name="description" content="Drop in a CSV, get a bar chart race. Zero dependencies, runs entirely in your browser, shares as a link." />
+<meta name="theme-color" content="#141518" />
+<meta property="og:title" content="frontrunner — bar chart races from a CSV" />
+<meta property="og:description" content="Drop in a CSV, get a bar chart race. Zero dependencies, runs entirely in your browser, shares as a link." />
+<meta property="og:type" content="website" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23141518'/%3E%3Cpath d='M22 17 47 32 22 47z' fill='%234fb8ad'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+
+<header class="hd">
+  <span class="hd__mark">frontrunner</span>
+  <input id="project-name" class="hd__name" value="Untitled race" aria-label="Project name" />
+  <span id="save-state" class="hd__save"></span>
+  <span class="hd__spacer"></span>
+  <select id="sel-layout" class="sel" aria-label="Layout" hidden></select>
+  <select id="sel-theme" class="sel" aria-label="Theme" hidden></select>
+  <button id="btn-panel" class="btn" hidden aria-pressed="false">Customize</button>
+  <button id="btn-share" class="btn" hidden>Copy share link</button>
+  <button id="btn-export" class="btn" hidden>Export ▾</button>
+  <button id="btn-new" class="btn btn--ghost" hidden>New</button>
+  <div id="export-menu" class="menu" hidden>
+    <button id="btn-export-project" class="menu__item">Project file (.frontrunner.json)</button>
+    <button id="btn-export-snapshot" class="menu__item">Standalone race (.html)</button>
+  </div>
+</header>
+
+<!-- empty state -->
+<main id="screen-empty" class="screen empty screen--active">
+  <div id="drop" class="drop" role="button" tabindex="0" aria-label="Drop a CSV file or click to browse">
+    <p class="drop__title">Drop a CSV to start a race</p>
+    <p class="drop__hint">or click to browse — long or wide format, we'll figure it out</p>
+  </div>
+  <input id="file-input" type="file" accept=".csv,.json,text/csv,application/json" hidden />
+  <div class="empty__row">
+    <input id="url-input" class="field" type="url" placeholder="…or fetch a CSV from a URL" aria-label="CSV URL" />
+    <button id="btn-fetch" class="btn">Fetch</button>
+  </div>
+  <textarea id="paste-input" class="empty__paste field" placeholder="Paste CSV here, then press Ctrl/Cmd + Enter" aria-label="Paste CSV"></textarea>
+  <p class="drop__hint">
+    <button id="btn-paste" class="link">Paste CSV instead</button>
+    &nbsp;·&nbsp;
+    <button id="btn-sample" class="link">Try the sample: world population</button>
+  </p>
+  <section id="projects" class="projects" hidden>
+    <h3 class="projects__title">Your races</h3>
+    <ul id="projects-list" class="projects__list"></ul>
+    <p id="storage-usage" class="drop__hint"></p>
+  </section>
+</main>
+
+<!-- mapping state -->
+<main id="screen-mapping" class="screen mapping">
+  <div class="card">
+    <h2>Check the mapping<span id="shape-badge" class="badge"></span></h2>
+    <p class="drop__hint" style="margin:0">We guessed which columns mean what. Correct anything that looks off.</p>
+    <div class="mapping__grid" id="mapping-grid"></div>
+    <table class="preview" id="preview-table"></table>
+    <div class="card__actions">
+      <button id="btn-back" class="btn btn--ghost">Back</button>
+      <button id="btn-build" class="btn btn--primary">Build race</button>
+    </div>
+  </div>
+</main>
+
+<!-- stage -->
+<main id="screen-stage" class="screen stage">
+  <div class="stage__body">
+    <svg id="stage-svg" class="stage__svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    <aside id="panel" class="panel" hidden>
+      <nav class="panel__tabs" role="tablist">
+        <button class="panel__tab panel__tab--active" data-tab="data" role="tab">Data</button>
+        <button class="panel__tab" data-tab="settings" role="tab">Settings</button>
+        <button class="panel__tab" data-tab="layout" role="tab">Layout</button>
+        <button class="panel__tab" data-tab="theme" role="tab">Theme</button>
+        <button class="panel__tab" data-tab="brand" role="tab">Brand</button>
+      </nav>
+      <div id="panel-data" class="panel__pane panel__pane--active"></div>
+      <div id="panel-settings" class="panel__pane"></div>
+      <div id="panel-layout" class="panel__pane"></div>
+      <div id="panel-theme" class="panel__pane"></div>
+      <div id="panel-brand" class="panel__pane"></div>
+    </aside>
+  </div>
+  <div class="transport">
+    <button id="btn-play" class="btn btn--primary transport__play" aria-label="Play or pause">▶</button>
+    <div class="scrub">
+      <input id="scrubber" type="range" min="0" max="1" step="0.001" value="0" aria-label="Timeline" />
+      <div id="scrub-ticks" class="scrub__ticks"></div>
+    </div>
+    <select id="sel-speed" class="sel" aria-label="Playback speed">
+      <option value="0.5">0.5×</option>
+      <option value="1" selected>1×</option>
+      <option value="2">2×</option>
+      <option value="4">4×</option>
+    </select>
+    <button id="btn-loop" class="btn" aria-pressed="false" aria-label="Loop">Loop</button>
+  </div>
+</main>
+
+<div id="toast" class="toast" role="status"></div>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>

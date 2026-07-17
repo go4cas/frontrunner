@@ -1,0 +1,381 @@
+// frontrunner — render.js
+// SVG painter. Consumes engine.frameState() output. Creates nodes lazily per
+// entity, updates attributes per frame, never churns the DOM during playback.
+//
+// Placeholder layout: the layout assigns each block (title, logo, clock,
+// total, source, axis) an anchor — top/bottom × left/center/right — and the
+// painter stacks blocks sharing an anchor. Top anchors and the source footer
+// RESERVE space (the plot shrinks); the clock and total FLOAT over the plot,
+// as is traditional for the big year readout.
+
+import { niceTicks, formatValue, formatPeriod, entityColor } from "./engine.js";
+
+const NS = "http://www.w3.org/2000/svg";
+
+function el(name, attrs = {}) {
+  const node = document.createElementNS(NS, name);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  return node;
+}
+
+const MARGIN = { top: 16, right: 24, bottom: 14, left: 16 };
+const RANK_W = 34;
+const OUTSIDE_LABEL_W = 200;
+const TITLE_H = 28;
+const SUBTITLE_H = 20;
+const LOGO_H = 36;
+const LOGO_W = 160;
+const TOTAL_H = 24;
+const SOURCE_H = 18;
+const AXIS_H = 24;
+
+export class Painter {
+  constructor(svg, dataset, layout, settings, theme, branding) {
+    this.svg = svg;
+    this.dataset = dataset;
+    this.layout = layout;
+    this.settings = settings;
+    this.theme = theme;
+    this.branding = branding ?? {};
+    this.nodes = new Map();
+    this.tickNodes = [];
+    this.width = 0;
+    this.height = 0;
+
+    this._initMeasure();
+    svg.textContent = "";
+    this.gAxis = el("g", { class: "fr-axis" });
+    this.gBars = el("g", { class: "fr-bars" });
+    this.gBlocks = el("g", { class: "fr-blocks" });
+    svg.append(this.gAxis, this.gBars, this.gBlocks);
+
+    this.titleText = el("text", { class: "fr-title" });
+    this.subtitleText = el("text", { class: "fr-subtitle" });
+    this.logoImage = el("image", { class: "fr-logo" });
+    this.periodText = el("text", { class: "fr-period" });
+    this.totalText = el("text", { class: "fr-total" });
+    this.sourceLink = el("a", { class: "fr-source-link", target: "_blank", rel: "noopener" });
+    this.sourceText = el("text", { class: "fr-source" });
+    this.sourceLink.append(this.sourceText);
+    this.gBlocks.append(this.titleText, this.subtitleText, this.logoImage, this.periodText, this.totalText, this.sourceLink);
+
+    this.resize();
+  }
+
+  setLayout(layout) {
+    this.layout = layout;
+    this.reflow();
+  }
+
+  setSettings(settings) {
+    this.settings = settings;
+    this.reflow();
+  }
+
+  setBranding(branding) {
+    this.branding = branding ?? {};
+    this.reflow();
+  }
+
+  setTheme(theme) {
+    this.theme = theme;
+    this._initMeasure(); // font stack may have changed; re-measure labels
+    for (const [index, n] of this.nodes) {
+      n.rect.setAttribute("fill", entityColor(index, theme.palette));
+      n.rect.setAttribute("rx", Number(theme.vars["--fr-bar-radius"]) || 0);
+    }
+    this.reflow();
+  }
+
+  /** Canvas-based label measurement: exact widths, computed once per entity,
+   * never per frame. Replaces the old chars×7.2px estimate that collided
+   * values with long names in inside-label mode. */
+  _initMeasure() {
+    this._measureCtx ??= document.createElement("canvas").getContext("2d");
+    const fam =
+      (this.theme?.vars?.["--fr-font-display"] ??
+        getComputedStyle(document.documentElement).getPropertyValue("--fr-font-display")) || "system-ui";
+    this._measureCtx.font = "600 14px " + String(fam).trim();
+    this._labelW = new Map();
+  }
+
+  _textW(s) {
+    let w = this._labelW.get(s);
+    if (w === undefined) {
+      w = this._measureCtx.measureText(s).width;
+      this._labelW.set(s, w);
+    }
+    return w;
+  }
+
+  resize() {
+    const rect = this.svg.getBoundingClientRect();
+    this.width = Math.max(320, rect.width);
+    this.height = Math.max(240, rect.height);
+    this.svg.setAttribute("viewBox", `0 0 ${this.width} ${this.height}`);
+    this.reflow();
+  }
+
+  /** Which blocks are actually live: slotted somewhere AND having content. */
+  _blocks() {
+    const { slots } = this.layout;
+    const b = this.branding;
+    const clockSize = Number(this.theme.vars["--fr-period-label-size"]) || 72;
+    const out = [];
+    if (slots.title !== "off" && (b.title || b.subtitle)) {
+      out.push({ id: "title", anchor: slots.title, h: (b.title ? TITLE_H : 0) + (b.subtitle ? SUBTITLE_H : 0), reserves: true });
+    }
+    if (slots.logo !== "off" && b.logoUrl) {
+      out.push({ id: "logo", anchor: slots.logo, h: LOGO_H + 6, reserves: slots.logo.startsWith("top") });
+    }
+    if (slots.clock !== "off") {
+      out.push({ id: "clock", anchor: slots.clock, h: clockSize * 0.82, reserves: false });
+    }
+    if (slots.total !== "off") {
+      out.push({ id: "total", anchor: slots.total, h: TOTAL_H, reserves: false });
+    }
+    if (slots.source !== "off" && (b.source || b.link)) {
+      out.push({ id: "source", anchor: slots.source, h: SOURCE_H, reserves: true });
+    }
+    return out;
+  }
+
+  reflow() {
+    const tpl = this.layout;
+    const set = this.settings;
+    const blocks = this._blocks();
+
+    // Reserved bands: max reserving-stack height per top row; source-height for bottom.
+    let topReserve = 0;
+    let bottomReserve = 0;
+    for (const side of ["left", "center", "right"]) {
+      const topStack = blocks.filter((b) => b.reserves && b.anchor === `top-${side}`);
+      topReserve = Math.max(topReserve, topStack.reduce((a, b) => a + b.h, 0));
+      const botStack = blocks.filter((b) => b.reserves && b.anchor === `bottom-${side}`);
+      bottomReserve = Math.max(bottomReserve, botStack.reduce((a, b) => a + b.h, 0));
+    }
+    const axisOn = tpl.slots.axis === "top";
+    const outside = tpl.bar.labelPosition === "outside";
+
+    this.plot = {
+      x: MARGIN.left + (tpl.bar.showRank ? RANK_W : 0),
+      y: MARGIN.top + topReserve + (axisOn ? AXIS_H : 0),
+      w: this.width - MARGIN.left - MARGIN.right - (tpl.bar.showRank ? RANK_W : 0) - (outside ? OUTSIDE_LABEL_W : 90),
+      h: this.height - MARGIN.top - topReserve - (axisOn ? AXIS_H : 0) - MARGIN.bottom - bottomReserve,
+    };
+    this.slotH = this.plot.h / set.topN;
+    this.barH = this.slotH * set.barThickness;
+
+    this._placeBlocks(blocks, bottomReserve);
+  }
+
+  _anchorX(anchor) {
+    const side = anchor.split("-")[1];
+    if (side === "left") return { x: MARGIN.left, ta: "start" };
+    if (side === "center") return { x: this.width / 2, ta: "middle" };
+    return { x: this.width - MARGIN.right, ta: "end" };
+  }
+
+  _placeBlocks(blocks, bottomReserve) {
+    const b = this.branding;
+    const clockSize = Number(this.theme.vars["--fr-period-label-size"]) || 72;
+
+    // Hide everything, then place live blocks.
+    for (const node of [this.titleText, this.subtitleText, this.logoImage, this.periodText, this.totalText, this.sourceText]) {
+      node.style.display = "none";
+    }
+
+    // Stack cursors per anchor. Top stacks grow downward from the margin;
+    // bottom stacks grow upward from above the reserved footer.
+    const cursors = {};
+    const topCursor = (a) => (cursors[a] ??= MARGIN.top);
+    const bottomCursor = (a) => (cursors[a] ??= this.height - MARGIN.bottom);
+
+    // Deterministic placement order: reserving blocks first, floats last,
+    // so floats stack above/below reserved content at a shared anchor.
+    const ordered = [...blocks].sort((x, y) => Number(y.reserves) - Number(x.reserves));
+
+    for (const block of ordered) {
+      const { x, ta } = this._anchorX(block.anchor);
+      const top = block.anchor.startsWith("top");
+      let y;
+      if (top) {
+        y = topCursor(block.anchor);
+        cursors[block.anchor] += block.h;
+      } else {
+        cursors[block.anchor] = bottomCursor(block.anchor) - block.h;
+        y = cursors[block.anchor];
+      }
+
+      if (block.id === "title") {
+        if (b.title) {
+          this.titleText.style.display = "";
+          this.titleText.setAttribute("x", x);
+          this.titleText.setAttribute("y", y + 20);
+          this.titleText.setAttribute("text-anchor", ta);
+          this.titleText.textContent = b.title;
+        }
+        if (b.subtitle) {
+          this.subtitleText.style.display = "";
+          this.subtitleText.setAttribute("x", x);
+          this.subtitleText.setAttribute("y", y + (b.title ? TITLE_H : 0) + 14);
+          this.subtitleText.setAttribute("text-anchor", ta);
+          this.subtitleText.textContent = b.subtitle;
+        }
+      } else if (block.id === "logo") {
+        this.logoImage.style.display = "";
+        const lx = ta === "start" ? x : ta === "middle" ? x - LOGO_W / 2 : x - LOGO_W;
+        this.logoImage.setAttribute("href", b.logoUrl);
+        this.logoImage.setAttribute("x", lx);
+        this.logoImage.setAttribute("y", y + 3);
+        this.logoImage.setAttribute("width", LOGO_W);
+        this.logoImage.setAttribute("height", LOGO_H);
+        this.logoImage.setAttribute(
+          "preserveAspectRatio",
+          ta === "start" ? "xMinYMin meet" : ta === "middle" ? "xMidYMin meet" : "xMaxYMin meet"
+        );
+      } else if (block.id === "clock") {
+        this.periodText.style.display = "";
+        this.periodText.setAttribute("x", x);
+        this.periodText.setAttribute("y", y + block.h - clockSize * 0.12);
+        this.periodText.setAttribute("text-anchor", ta);
+        this.periodText.setAttribute("font-size", clockSize);
+      } else if (block.id === "total") {
+        this.totalText.style.display = "";
+        this.totalText.setAttribute("x", x);
+        this.totalText.setAttribute("y", y + TOTAL_H - 6);
+        this.totalText.setAttribute("text-anchor", ta);
+      } else if (block.id === "source") {
+        this.sourceText.style.display = "";
+        this.sourceText.setAttribute("x", x);
+        this.sourceText.setAttribute("y", y + SOURCE_H - 5);
+        this.sourceText.setAttribute("text-anchor", ta);
+        this.sourceText.textContent = [b.source, b.link].filter(Boolean).join("  ·  ");
+        if (b.link) this.sourceLink.setAttribute("href", b.link);
+        else this.sourceLink.removeAttribute("href");
+      }
+    }
+    void bottomReserve; // reserved band already carved from plot height
+  }
+
+  _bundle(index, entity) {
+    let n = this.nodes.get(index);
+    if (n) return n;
+    const g = el("g", { class: "fr-bar" });
+    const rect = el("rect", {
+      rx: Number(this.theme.vars["--fr-bar-radius"]) || 0,
+      fill: entityColor(index, this.theme.palette),
+    });
+    const rank = el("text", { class: "fr-rank", "text-anchor": "end" });
+    const label = el("text", { class: "fr-label" });
+    const value = el("text", { class: "fr-value" });
+    label.textContent = entity;
+    g.append(rect, rank, label, value);
+    this.gBars.append(g);
+    n = { g, rect, rank, label, value };
+    this.nodes.set(index, n);
+    return n;
+  }
+
+  /** Paint one frame. state = engine.frameState() output. */
+  paint(state) {
+    const tpl = this.layout;
+    const fmt = this.settings.valueFormat;
+    const { x, y, w } = this.plot;
+    const outside = tpl.bar.labelPosition === "outside";
+    const seen = new Set();
+
+    for (const bar of state.bars) {
+      seen.add(bar.index);
+      const n = this._bundle(bar.index, bar.entity);
+      const by = y + bar.rank * this.slotH + (this.slotH - this.barH) / 2;
+      const bw = Math.max(0, (bar.value / state.axisMax) * w);
+      n.g.setAttribute("opacity", bar.opacity.toFixed(3));
+      n.g.style.display = "";
+      n.rect.setAttribute("x", x);
+      n.rect.setAttribute("y", by);
+      n.rect.setAttribute("width", bw);
+      n.rect.setAttribute("height", this.barH);
+
+      const midY = by + this.barH / 2;
+      if (tpl.bar.showRank) {
+        n.rank.style.display = "";
+        n.rank.setAttribute("x", x - 10);
+        n.rank.setAttribute("y", midY);
+        n.rank.textContent = String(Math.round(bar.rank) + 1);
+      } else {
+        n.rank.style.display = "none";
+      }
+
+      const valueText = tpl.bar.showValue ? formatValue(bar.value, fmt) : "";
+      if (outside) {
+        n.label.setAttribute("x", x + bw + 10);
+        n.label.setAttribute("y", midY - (tpl.bar.showValue ? 7 : 0));
+        n.label.setAttribute("text-anchor", "start");
+        n.label.classList.remove("fr-label--inside");
+        n.value.setAttribute("x", x + bw + 10);
+        n.value.setAttribute("y", midY + 11);
+        n.value.setAttribute("text-anchor", "start");
+      } else {
+        const labelW = this._textW(bar.entity);
+        const inside = bw > labelW + 28; // label fits inside with breathing room
+        n.label.setAttribute("x", inside ? x + bw - 10 : x + bw + 10);
+        n.label.setAttribute("y", midY);
+        n.label.setAttribute("text-anchor", inside ? "end" : "start");
+        n.label.classList.toggle("fr-label--inside", inside);
+        n.value.setAttribute("x", x + bw + (inside ? 10 : 16 + labelW));
+        n.value.setAttribute("y", midY);
+        n.value.setAttribute("text-anchor", "start");
+      }
+      n.value.textContent = valueText;
+    }
+
+    for (const [index, n] of this.nodes) {
+      if (!seen.has(index)) n.g.style.display = "none";
+    }
+
+    this._paintAxis(state);
+
+    if (this.layout.slots.clock !== "off") {
+      this.periodText.textContent = formatPeriod(state.periodLabel, this.settings.periodLabelFormat);
+    }
+    if (this.layout.slots.total !== "off") {
+      this.totalText.textContent = "Σ " + formatValue(state.total, fmt);
+    }
+  }
+
+  _paintAxis(state) {
+    if (this.layout.slots.axis !== "top") {
+      this.gAxis.style.display = "none";
+      return;
+    }
+    this.gAxis.style.display = "";
+    const { x, y, w, h } = this.plot;
+    const ticks = niceTicks(state.axisMax, 5);
+    while (this.tickNodes.length < ticks.length) {
+      const g = el("g", { class: "fr-tick" });
+      const line = el("line");
+      const text = el("text", { "text-anchor": "middle" });
+      g.append(line, text);
+      this.gAxis.append(g);
+      this.tickNodes.push({ g, line, text });
+    }
+    this.tickNodes.forEach((n, idx) => {
+      if (idx >= ticks.length) {
+        n.g.style.display = "none";
+        return;
+      }
+      const v = ticks[idx];
+      const tx = x + (v / state.axisMax) * w;
+      n.g.style.display = "";
+      n.line.setAttribute("x1", tx);
+      n.line.setAttribute("x2", tx);
+      n.line.setAttribute("y1", y - 6);
+      n.line.setAttribute("y2", y + h);
+      n.text.setAttribute("x", tx);
+      n.text.setAttribute("y", y - 12);
+      n.text.textContent = formatValue(v, { ...this.settings.valueFormat, decimals: 0 });
+    });
+  }
+}
+
