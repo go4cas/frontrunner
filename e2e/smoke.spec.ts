@@ -1,16 +1,15 @@
 // Real-browser smoke: the layer that catches what no DOM shim can —
 // CSS cascade bugs (the [hidden] incident), click wiring, actual rendering.
 import { test, expect } from "@playwright/test";
-import { resolve } from "node:path";
-import pkg from "../package.json";
+import { VERSION } from "../src/version.js";
 
-const DIST = "file://" + resolve(import.meta.dirname, "../dist/index.html");
+const DIST = new URL("../dist/index.html", import.meta.url).href;
 
 test("sample race renders, panel toggles, version chip matches build", async ({ page }) => {
   await page.goto(DIST);
 
   // Version chip = the build we think we're testing
-  await expect(page.locator("#app-version")).toHaveText("v" + pkg.version);
+  await expect(page.locator("#app-version")).toHaveText("v" + VERSION);
 
   // Sample → mapping (image column auto-detected) → race
   await page.getByText("Try the sample").click();
