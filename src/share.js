@@ -10,7 +10,7 @@ export function supported() {
 }
 
 /** Build a self-contained project envelope (format v4). Dataset values serialize as a plain array. */
-export function makeProject({ name, dataset, mapping, layout, settings, theme, branding, raw }) {
+export function makeProject({ name, dataset, mapping, layout, settings, theme, branding, events, raw }) {
   return {
     frontrunner: 4,
     name,
@@ -28,6 +28,7 @@ export function makeProject({ name, dataset, mapping, layout, settings, theme, b
     settings,
     theme,
     branding,
+    ...(events?.length ? { events } : {}),
     raw, // optional { csv } — original text, enables re-mapping after reopen
   };
 }

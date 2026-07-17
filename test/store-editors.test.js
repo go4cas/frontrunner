@@ -1,5 +1,5 @@
 import { describe, expect, test, beforeEach } from "bun:test";
-import { validateLayout, validateSettings, validateBranding, validateTheme, parseUserJSON, isHexColor, toSixDigitHex } from "../src/editors.js";
+import { validateLayout, validateSettings, validateEvents, validateBranding, validateTheme, parseUserJSON, isHexColor, toSixDigitHex } from "../src/editors.js";
 import { DEFAULT_SETTINGS } from "../src/builtins.js";
 import { LAYOUTS, THEMES } from "../src/builtins.js";
 
@@ -42,6 +42,26 @@ describe("validateLayout", () => {
   test("showImage defaults on and survives round-trip", () => {
     expect(validateLayout({}).layout.bar.showImage).toBe(true);
     expect(validateLayout({ bar: { showImage: false } }).layout.bar.showImage).toBe(false);
+  });
+  test("caption slot validates; settings pauses clamp", () => {
+    expect(validateLayout({}).layout.slots.caption).toBe("bottom-center");
+    expect(validateSettings({ endPeriodPause: 500, eventPause: 99999 }).settings.endPeriodPause).toBe(500);
+    expect(validateSettings({ eventPause: 99999 }).settings.eventPause).toBe(10000);
+    expect(validateSettings({}).settings.eventPause).toBe(1500);
+  });
+  test("validateEvents trims, caps, and drops empties", () => {
+    const { events } = validateEvents([
+      { period: 1990, text: "  Wall falls  " },
+      { period: "", text: "orphan" },
+      { period: 2000, text: "" },
+      { period: 2010, text: "x".repeat(400) },
+      null,
+    ]);
+    expect(events).toEqual([
+      { period: "1990", text: "Wall falls" },
+      { period: "2010", text: "x".repeat(200) },
+    ]);
+    expect(validateEvents(undefined).events).toEqual([]);
   });
   test("legend slot validates like the other placeholders", () => {
     expect(validateLayout({}).layout.slots.legend).toBe("top-center");

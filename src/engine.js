@@ -151,11 +151,14 @@ export function entityColor(index, palette) {
  * Keeps t continuous in [0, P-1]; supports speed multiplier and loop.
  */
 export class Playback {
-  constructor({ length, msPerPeriod, onFrame, onStateChange, raf, now }) {
+  constructor({ length, msPerPeriod, onFrame, onStateChange, holdAtPeriod, raf, now }) {
     this.length = length; // number of periods
     this.msPerPeriod = msPerPeriod;
     this.onFrame = onFrame;
     this.onStateChange = onStateChange ?? (() => {});
+    // holdAtPeriod(periodIndex) → ms to linger when playback crosses INTO
+    // that period (endPeriodPause, event pauses). 0/undefined = no hold.
+    this.holdAtPeriod = holdAtPeriod ?? null;
     this.raf = raf ?? ((cb) => requestAnimationFrame(cb));
     this.now = now ?? (() => performance.now());
     this.t = 0;
@@ -163,6 +166,8 @@ export class Playback {
     this.loop = false;
     this.playing = false;
     this._last = 0;
+    this._holdUntil = 0;
+    this._lastFloor = 0;
     this._tick = this._tick.bind(this);
   }
   play() {
@@ -170,6 +175,8 @@ export class Playback {
     if (this.t >= this.length - 1) this.t = 0; // replay from start
     this.playing = true;
     this._last = this.now();
+    this._holdUntil = 0;
+    this._lastFloor = Math.floor(this.t);
     this.onStateChange();
     this.raf(this._tick);
   }
@@ -183,6 +190,8 @@ export class Playback {
   }
   seek(t) {
     this.t = Math.max(0, Math.min(this.length - 1, t));
+    this._holdUntil = 0;
+    this._lastFloor = Math.floor(this.t);
     this.onFrame(this.t);
   }
   step(dir) {
@@ -194,7 +203,29 @@ export class Playback {
     const now = this.now();
     const dt = now - this._last;
     this._last = now;
+    if (this._holdUntil) {
+      if (now < this._holdUntil) {
+        this.onFrame(this.t);
+        this.raf(this._tick);
+        return;
+      }
+      this._holdUntil = 0;
+    }
     this.t += (dt / this.msPerPeriod) * this.speed;
+    const f = Math.floor(this.t);
+    if (f > this._lastFloor && f < this.length - 1) {
+      this._lastFloor = f;
+      const holdMs = this.holdAtPeriod?.(f) ?? 0;
+      if (holdMs > 0) {
+        this.t = f; // land exactly on the period, then linger
+        this._holdUntil = now + holdMs;
+        this.onFrame(this.t);
+        if (this.playing) this.raf(this._tick);
+        return;
+      }
+    } else if (f > this._lastFloor) {
+      this._lastFloor = f;
+    }
     if (this.t >= this.length - 1) {
       if (this.loop) {
         this.t = 0;

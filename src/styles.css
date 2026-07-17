@@ -763,3 +763,26 @@ label.lbl {
   fill: var(--fr-text-muted);
   dominant-baseline: middle;
 }
+
+/* ---------- event captions ---------- */
+
+.fr-caption {
+  font-family: var(--fr-font-display);
+  font-size: 15px;
+  font-weight: 600;
+  fill: var(--fr-text);
+}
+
+.panel__row--event {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.sel--compact {
+  flex: 0 0 84px;
+}
+
+.link--danger {
+  color: var(--fr-danger, #c0392b);
+}

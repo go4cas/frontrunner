@@ -204,3 +204,68 @@ describe("easings", () => {
     }
   });
 });
+
+
+describe("playback holds", () => {
+  function fakeClock() {
+    let t = 0;
+    const queue = [];
+    return {
+      now: () => t,
+      raf: (cb) => queue.push(cb),
+      step(ms) {
+        t += ms;
+        const cbs = queue.splice(0);
+        for (const cb of cbs) cb();
+      },
+    };
+  }
+
+  test("holdAtPeriod lands exactly on the period and lingers", () => {
+    const clock = fakeClock();
+    const frames = [];
+    const pb = new Playback({
+      length: 4,
+      msPerPeriod: 100,
+      onFrame: (t) => frames.push(t),
+      holdAtPeriod: (p) => (p === 1 ? 500 : 0),
+      raf: clock.raf,
+      now: clock.now,
+    });
+    pb.play();
+    clock.step(130); // crosses into period 1 → snaps to 1.0, holds
+    expect(pb.t).toBe(1);
+    clock.step(200); // inside the hold: no advance
+    expect(pb.t).toBe(1);
+    clock.step(400); // hold expires (500ms total elapsed since snap)
+    clock.step(50);
+    expect(pb.t).toBeGreaterThan(1);
+  });
+
+  test("no hold configured → playback flows straight through", () => {
+    const clock = fakeClock();
+    const pb = new Playback({ length: 4, msPerPeriod: 100, onFrame: () => {}, raf: clock.raf, now: clock.now });
+    pb.play();
+    clock.step(150);
+    expect(pb.t).toBeCloseTo(1.5, 5);
+  });
+
+  test("seek resets hold tracking", () => {
+    const clock = fakeClock();
+    const pb = new Playback({
+      length: 5,
+      msPerPeriod: 100,
+      onFrame: () => {},
+      holdAtPeriod: () => 1000,
+      raf: clock.raf,
+      now: clock.now,
+    });
+    pb.play();
+    clock.step(120);
+    expect(pb.t).toBe(1); // holding
+    pb.seek(3.5);
+    expect(pb.t).toBe(3.5);
+    clock.step(30);
+    expect(pb.t).toBeGreaterThan(3.5); // hold cleared by seek
+  });
+});

@@ -50,7 +50,7 @@ export function validateLayout(input) {
 
   const slots = t.slots && typeof t.slots === "object" ? t.slots : {};
   t.slots = {};
-  for (const key of ["title", "logo", "clock", "total", "source", "legend"]) {
+  for (const key of ["title", "logo", "clock", "total", "source", "legend", "caption"]) {
     t.slots[key] = oneOf(slots[key], ANCHORS, d.slots[key]);
   }
   t.slots.axis = oneOf(slots.axis, ["top", "off"], d.slots.axis);
@@ -78,9 +78,25 @@ export function validateSettings(input) {
     suffix: str(vf.suffix),
   };
 
+  s.endPeriodPause = num(s.endPeriodPause, d.endPeriodPause, 0, 10000);
+  s.eventPause = num(s.eventPause, d.eventPause, 0, 10000);
   s.periodLabelFormat = oneOf(s.periodLabelFormat, ["raw", "year", "month-year"], d.periodLabelFormat);
   s.axisScale = oneOf(s.axisScale, ["dynamic", "fixed"], d.axisScale);
   return { settings: s, errors };
+}
+
+/** Validate the events list: [{ period, text }]. Empty text drops the event;
+ * text caps at 200 chars; period stays a string label. Never throws. */
+export function validateEvents(input) {
+  const list = Array.isArray(input) ? input : [];
+  const events = [];
+  for (const e of list) {
+    if (!e || typeof e !== "object") continue;
+    const period = String(e.period ?? "").trim();
+    const text = str(e.text).trim().slice(0, 200);
+    if (period && text) events.push({ period, text });
+  }
+  return { events, errors: [] };
 }
 
 /** Validate branding (content). Trims strings, caps lengths. Never throws. */

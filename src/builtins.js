@@ -14,21 +14,21 @@ export const LAYOUTS = [
     name: "Classic race",
     type: "bar-race",
     bar: { labelPosition: "outside", showRank: true, showValue: true, showImage: true, imagePosition: "inside" },
-    slots: { title: "top-left", logo: "top-right", clock: "bottom-right", total: "off", source: "bottom-left", legend: "top-center", axis: "top" },
+    slots: { title: "top-left", logo: "top-right", clock: "bottom-right", total: "off", source: "bottom-left", legend: "top-center", caption: "bottom-center", axis: "top" },
   },
   {
     id: "dense",
     name: "Dense field",
     type: "bar-race",
     bar: { labelPosition: "inside", showRank: true, showValue: true, showImage: true, imagePosition: "inside" },
-    slots: { title: "top-left", logo: "top-right", clock: "bottom-right", total: "bottom-right", source: "bottom-left", legend: "top-center", axis: "off" },
+    slots: { title: "top-left", logo: "top-right", clock: "bottom-right", total: "bottom-right", source: "bottom-left", legend: "top-center", caption: "bottom-center", axis: "off" },
   },
   {
     id: "broadcast",
     name: "Broadcast",
     type: "bar-race",
     bar: { labelPosition: "outside", showRank: false, showValue: true, showImage: true, imagePosition: "inside" },
-    slots: { title: "top-center", logo: "off", clock: "bottom-center", total: "off", source: "bottom-left", legend: "off", axis: "off" },
+    slots: { title: "top-center", logo: "off", clock: "bottom-center", total: "off", source: "bottom-left", legend: "off", caption: "top-center", axis: "off" },
   },
 ];
 
@@ -39,6 +39,8 @@ export const DEFAULT_SETTINGS = {
   barThickness: 0.72,
   msPerPeriod: 1400,
   easing: "easeInOutCubic",
+  endPeriodPause: 0,
+  eventPause: 1500,
   valueFormat: { notation: "compact", decimals: 1, prefix: "", suffix: "" },
   periodLabelFormat: "raw",
   axisScale: "dynamic",

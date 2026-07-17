@@ -9,7 +9,7 @@ import { parseCSV, detectShape, normalize, temporalType, sniffProject } from "./
 import { precompute, frameState, Playback, EASINGS } from "./engine.js";
 import { Painter } from "./render.js";
 import { LAYOUTS, THEMES, DEFAULT_SETTINGS, DEFAULT_BRANDING, sampleCSV, SAMPLE_NAME } from "./builtins.js";
-import { validateLayout, validateSettings, validateBranding, validateTheme, parseUserJSON, isHexColor, toSixDigitHex } from "./editors.js";
+import { validateLayout, validateSettings, validateBranding, validateEvents, validateTheme, parseUserJSON, isHexColor, toSixDigitHex } from "./editors.js";
 import { migrateProject } from "./migrate.js";
 import { VERSION } from "./version.js";
 import * as share from "./share.js";
@@ -31,6 +31,7 @@ const state = {
   settings: structuredClone(DEFAULT_SETTINGS),
   theme: structuredClone(THEMES[0]),
   branding: structuredClone(DEFAULT_BRANDING),
+  events: [],
   painter: null,
   playback: null,
   name: "Untitled race",
@@ -80,6 +81,7 @@ function currentProject() {
     settings: state.settings,
     theme: state.theme,
     branding: state.branding,
+    events: state.events?.length ? state.events : undefined,
     raw: state.rawCSV ? { csv: state.rawCSV } : undefined,
   });
 }
@@ -415,6 +417,7 @@ function openProject(rawProject, { assignNewId = false } = {}) {
     state.settings = validateSettings(project.settings ?? DEFAULT_SETTINGS).settings;
     state.theme = validateTheme(project.theme ?? THEMES[0]).theme;
     state.branding = validateBranding(project.branding ?? DEFAULT_BRANDING).branding;
+    state.events = validateEvents(project.events).events;
     if (assignNewId) state.projectId = store.newId();
     $("project-name").value = state.name;
     openStage(VIEWER && !reducedMotion);
@@ -430,7 +433,7 @@ function openStage(autoplay) {
   syncSelect("sel-layout", "layouts", state.layout);
   syncSelect("sel-theme", "themes", state.theme);
   applyTheme(state.theme);
-  state.painter = new Painter(svg, state.dataset, state.layout, state.settings, state.theme, state.branding);
+  state.painter = new Painter(svg, state.dataset, state.layout, state.settings, state.theme, state.branding, state.events);
 
   const P = state.dataset.periods.length;
   const scrub = $("scrubber");
@@ -447,9 +450,15 @@ function openStage(autoplay) {
   }
 
   state.playback?.pause();
+  const eventPeriods = new Set((state.events ?? []).map((e) => String(e.period)));
   state.playback = new Playback({
     length: P,
     msPerPeriod: state.settings.msPerPeriod,
+    holdAtPeriod: (p) => {
+      const s = state.settings;
+      const isEvent = eventPeriods.has(String(state.dataset.periods[p]));
+      return Math.max(s.endPeriodPause ?? 0, isEvent ? (s.eventPause ?? 0) : 0);
+    },
     onFrame: (t) => {
       scrub.value = String(t);
       state.painter.paint(frameState(state.dataset, state.pre, state.settings, t));
@@ -616,6 +625,49 @@ function renderDataPane() {
   if (hasAny) renderImageInputs();
   pane.append(imgToggle, imgWrap);
 
+  // Events: (period, text) rows rendered as captions during the race.
+  pane.append(el("hr", { className: "panel__hr" }), el("p", { className: "panel__section", textContent: "Events" }));
+  const evWrap = el("div");
+  const rebuildEvents = () => {
+    evWrap.textContent = "";
+    state.events.forEach((ev, i) => {
+      const periodSel = el("select", { className: "sel sel--compact" });
+      for (const pd of ds.periods) {
+        periodSel.append(el("option", { value: String(pd), textContent: String(pd), selected: String(pd) === String(ev.period) }));
+      }
+      periodSel.addEventListener("change", () => {
+        ev.period = periodSel.value;
+        commitEvents();
+      });
+      const text = el("input", { className: "field", value: ev.text, placeholder: "What happened…" });
+      text.addEventListener("change", () => {
+        ev.text = text.value;
+        commitEvents();
+      });
+      const del = el("button", { className: "link link--danger", textContent: "remove" });
+      del.addEventListener("click", () => {
+        state.events.splice(i, 1);
+        commitEvents();
+        rebuildEvents();
+      });
+      evWrap.append(el("div", { className: "panel__row panel__row--event" }, [periodSel, text, del]));
+    });
+  };
+  const commitEvents = () => {
+    state.events = validateEvents(state.events).events;
+    state.painter?.setEvents(state.events);
+    repaint();
+    autosave();
+  };
+  const addEvent = el("button", { className: "link", textContent: "+ Add event" });
+  addEvent.addEventListener("click", () => {
+    state.events.push({ period: String(ds.periods[0]), text: "" });
+    rebuildEvents();
+    evWrap.querySelector(".panel__row--event:last-child input")?.focus();
+  });
+  rebuildEvents();
+  pane.append(evWrap, addEvent);
+
   if (state.parsed) {
     const btn = el("button", { className: "btn", textContent: "Edit mapping" });
     btn.addEventListener("click", () => {
@@ -668,6 +720,17 @@ function renderSettingsPane() {
     commit();
   });
   pane.append(el("div", { className: "panel__row--split" }, [labeled("ms / period", speed), labeled("Easing", easing)]));
+  const periodPause = el("input", { className: "field", type: "number", min: 0, max: 10000, step: 100, value: sg.endPeriodPause });
+  periodPause.addEventListener("change", () => {
+    sg.endPeriodPause = periodPause.value;
+    commit();
+  });
+  const eventPause = el("input", { className: "field", type: "number", min: 0, max: 10000, step: 100, value: sg.eventPause });
+  eventPause.addEventListener("change", () => {
+    sg.eventPause = eventPause.value;
+    commit();
+  });
+  pane.append(el("div", { className: "panel__row--split" }, [labeled("Pause / period (ms)", periodPause), labeled("Pause on events (ms)", eventPause)]));
 
   pane.append(el("hr", { className: "panel__hr" }), el("p", { className: "panel__section", textContent: "Value format" }));
   const notation = el("select", { className: "sel" });
@@ -740,6 +803,7 @@ function renderLayoutPane() {
     total: "Running total",
     source: "Source & link",
     legend: "Category legend",
+    caption: "Event caption",
   };
   for (const [slot, label] of Object.entries(slotNames)) {
     const sel = el("select", { className: "sel" });

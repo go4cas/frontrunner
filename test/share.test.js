@@ -105,6 +105,15 @@ describe("share codec", () => {
     expect(hydrateDataset(back.dataset).categories.Russia).toBe("Europe");
   });
 
+  test("events travel in the envelope; empty events elided", async () => {
+    const project = sampleProject();
+    project.events = [{ period: "1990", text: "Reunification" }];
+    const back = await decodeProject((await encodeProject(project)).blob);
+    expect(back.events).toEqual([{ period: "1990", text: "Reunification" }]);
+    const bare = await decodeProject((await encodeProject(sampleProject())).blob);
+    expect("events" in bare).toBe(false);
+  });
+
   test("optional raw CSV travels in the envelope and round-trips", async () => {
     const project = sampleProject();
     project.raw = { csv: "year,country,population\n1960,China,667000000" };

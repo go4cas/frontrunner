@@ -112,6 +112,19 @@ describe("painter smoke (happy-dom)", () => {
     expect(legendLabels).toEqual(["Asia", "Americas", "Africa", "Europe"]);
   });
 
+  test("event captions appear on their period and vanish elsewhere", () => {
+    svg = makeSvg(document);
+    const events = [{ period: "1990", text: "The wall falls" }];
+    const p = new Painter(svg, ds, structuredClone(LAYOUTS[0]), structuredClone(DEFAULT_SETTINGS), structuredClone(THEMES[0]), {}, events);
+    const idx1990 = ds.periods.findIndex((x) => String(x) === "1990");
+    p.paint(frameState(ds, pre, DEFAULT_SETTINGS, idx1990));
+    const cap = svg.querySelector(".fr-caption");
+    expect(cap.style.display).not.toBe("none");
+    expect(cap.textContent).toBe("The wall falls");
+    p.paint(frameState(ds, pre, DEFAULT_SETTINGS, 0));
+    expect(cap.style.display).toBe("none");
+  });
+
   test("branding blocks render when content exists and collapse when empty", () => {
     svg = makeSvg(document);
     const branding = { title: "The Race", subtitle: "sub", source: "Data: X", link: "https://x.test", logoUrl: "" };

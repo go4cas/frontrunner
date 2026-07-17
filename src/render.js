@@ -30,7 +30,7 @@ const SOURCE_H = 18;
 const AXIS_H = 24;
 
 export class Painter {
-  constructor(svg, dataset, layout, settings, theme, branding) {
+  constructor(svg, dataset, layout, settings, theme, branding, events) {
     this.svg = svg;
     this.dataset = dataset;
     this.layout = layout;
@@ -46,6 +46,7 @@ export class Painter {
     this._initMeasure();
     // Category order of first appearance drives palette-by-category.
     this.catList = [...new Set(dataset.entities.map((e) => dataset.categories?.[e]).filter(Boolean))];
+    this.setEvents(events ?? [], { silent: true });
 
     svg.textContent = "";
     this.gAxis = el("g", { class: "fr-axis" });
@@ -62,7 +63,8 @@ export class Painter {
     this.sourceText = el("text", { class: "fr-source" });
     this.sourceLink.append(this.sourceText);
     this.gLegend = el("g", { class: "fr-legend" });
-    this.gBlocks.append(this.titleText, this.subtitleText, this.logoImage, this.periodText, this.totalText, this.sourceLink, this.gLegend);
+    this.captionText = el("text", { class: "fr-caption" });
+    this.gBlocks.append(this.captionText, this.titleText, this.subtitleText, this.logoImage, this.periodText, this.totalText, this.sourceLink, this.gLegend);
 
     this.resize();
   }
@@ -80,6 +82,13 @@ export class Painter {
   /** Forget a failed URL so the next paint retries it (called on URL edits). */
   retryImage(url) {
     if (url) this.failedImages.delete(url);
+  }
+
+  /** Events: [{ period, text }] → caption lookup by period label. */
+  setEvents(events, { silent = false } = {}) {
+    this.events = Array.isArray(events) ? events : [];
+    this._eventMap = new Map(this.events.map((e) => [String(e.period), e.text]));
+    if (!silent) this.reflow();
   }
 
   setBranding(branding) {
@@ -164,6 +173,10 @@ export class Painter {
     if (slots.legend !== "off" && this.catList.length) {
       out.push({ id: "legend", anchor: slots.legend, h: 24, reserves: true });
     }
+    if (slots.caption !== "off" && this.events.length) {
+      // Floats: captions appear and vanish per period — reserving would jump the chart.
+      out.push({ id: "caption", anchor: slots.caption, h: 26, reserves: false });
+    }
     return out;
   }
 
@@ -214,6 +227,8 @@ export class Painter {
       node.style.display = "none";
     }
     this.gLegend.textContent = ""; // rebuilt only if the legend block is live
+    this._captionLive = false;
+    this.captionText.style.display = "none";
 
     // Stack cursors per anchor. Top stacks grow downward from the margin;
     // bottom stacks grow upward from above the reserved footer.
@@ -275,6 +290,11 @@ export class Painter {
         this.totalText.setAttribute("x", x);
         this.totalText.setAttribute("y", y + TOTAL_H - 6);
         this.totalText.setAttribute("text-anchor", ta);
+      } else if (block.id === "caption") {
+        this.captionText.setAttribute("x", x);
+        this.captionText.setAttribute("y", y + 17);
+        this.captionText.setAttribute("text-anchor", ta);
+        this._captionLive = true;
       } else if (block.id === "legend") {
         this.gLegend.textContent = "";
         const SW = 11; // swatch size
@@ -448,6 +468,15 @@ export class Painter {
 
     if (this.layout.slots.clock !== "off") {
       this.periodText.textContent = formatPeriod(state.periodLabel, this.settings.periodLabelFormat);
+    }
+    if (this._captionLive) {
+      const caption = this._eventMap.get(String(state.periodLabel));
+      if (caption) {
+        this.captionText.textContent = caption;
+        this.captionText.style.display = "";
+      } else {
+        this.captionText.style.display = "none";
+      }
     }
     if (this.layout.slots.total !== "off") {
       this.totalText.textContent = "Σ " + formatValue(state.total, fmt);
