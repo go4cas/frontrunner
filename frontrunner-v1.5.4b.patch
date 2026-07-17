@@ -1,3 +1,76 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index cd8d56f..c0132b7 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -15,7 +15,7 @@ jobs:
+           bun-version: latest
+       - name: Test
+         run: bun test
+-      - name: Build (includes script-injection guard + inlining checks)
++      - name: Build (script-injection guard + version-drift guard)
+         run: bun run build
+       - name: Verify the inline bundle parses as valid JS
+         run: |
+@@ -34,3 +34,24 @@ jobs:
+         with:
+           name: frontrunner
+           path: dist/index.html
++
++  deploy:
++    needs: test-and-build
++    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'go4cas/frontrunner'
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++      - uses: oven-sh/setup-bun@v2
++        with:
++          bun-version: latest
++      - name: Build
++        run: bun run build
++      - name: Deploy to here.now
++        env:
++          HERENOW_API_KEY: ${{ secrets.HERENOW_API_KEY }}
++        run: |
++          if [ -z "$HERENOW_API_KEY" ]; then
++            echo "::warning title=Deploy skipped::HERENOW_API_KEY secret not set — production was NOT updated."
++            exit 0
++          fi
++          bun run deploy
+diff --git a/.github/workflows/deploy.yml b/.github/workflows/deploy.yml
+deleted file mode 100644
+index a042147..0000000
+--- a/.github/workflows/deploy.yml
++++ /dev/null
+@@ -1,29 +0,0 @@
+-name: deploy
+-
+-on:
+-  push:
+-    branches: [main]
+-
+-jobs:
+-  deploy:
+-    runs-on: ubuntu-latest
+-    # Only deploy when the secret is configured; forks and PRs never see it.
+-    if: github.repository == 'go4cas/frontrunner'
+-    steps:
+-      - uses: actions/checkout@v4
+-      - uses: oven-sh/setup-bun@v2
+-        with:
+-          bun-version: latest
+-      - name: Test
+-        run: bun test
+-      - name: Build
+-        run: bun run build
+-      - name: Deploy to here.now
+-        env:
+-          HERENOW_API_KEY: ${{ secrets.HERENOW_API_KEY }}
+-        run: |
+-          if [ -z "$HERENOW_API_KEY" ]; then
+-            echo "HERENOW_API_KEY secret not set — skipping deploy."
+-            exit 0
+-          fi
+-          bun run deploy
 diff --git a/dist/index.html b/dist/index.html
 index ecd8792..94f13a8 100644
 --- a/dist/index.html
@@ -91,30 +164,12 @@ index 2edf8c8..87a36d4 100644
      this._placeBlocks(blocks, bottomReserve);
    }
 diff --git a/src/version.js b/src/version.js
-new file mode 100644
-index 0000000..2c39606
---- /dev/null
+index 9c76352..2c39606 100644
+--- a/src/version.js
 +++ b/src/version.js
-@@ -0,0 +1,4 @@
-+// frontrunner — version.js
-+// Single displayed version. MUST match package.json — scripts/build.ts fails the
-+// build on drift, so bumping means editing both (deliberately, atomically).
+@@ -1,4 +1,4 @@
+ // frontrunner — version.js
+ // Single displayed version. MUST match package.json — scripts/build.ts fails the
+ // build on drift, so bumping means editing both (deliberately, atomically).
+-export const VERSION = "1.5.3";
 +export const VERSION = "1.5.4";
-diff --git a/test/version.test.js b/test/version.test.js
-new file mode 100644
-index 0000000..efbfa9a
---- /dev/null
-+++ b/test/version.test.js
-@@ -0,0 +1,12 @@
-+import { describe, expect, test } from "bun:test";
-+import { VERSION } from "../src/version.js";
-+import pkg from "../package.json";
-+
-+describe("version", () => {
-+  test("src/version.js matches package.json (bump both together)", () => {
-+    expect(VERSION).toBe(pkg.version);
-+  });
-+  test("semver-ish shape", () => {
-+    expect(/^\d+\.\d+\.\d+$/.test(VERSION)).toBe(true);
-+  });
-+});

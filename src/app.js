@@ -863,7 +863,7 @@ function renderThemePane() {
     commit();
   });
   pane.append(el("div", { className: "panel__row" }, [labeled("Mono font stack", fontM)]));
-  const radius = el("input", { className: "field", type: "number", min: 0, max: 20, value: th.vars["--fr-bar-radius"] });
+  const radius = el("input", { className: "field", value: th.vars["--fr-bar-radius"], placeholder: "0–20 or pill" });
   radius.addEventListener("change", () => {
     th.vars["--fr-bar-radius"] = String(radius.value);
     commit();

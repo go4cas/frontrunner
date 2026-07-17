@@ -170,7 +170,8 @@ export class Painter {
     };
     this.slotH = this.plot.h / set.topN;
     this.barH = this.slotH * set.barThickness;
-    this.barRadius = Number(this.theme.vars["--fr-bar-radius"]) || 0;
+    const rawRadius = String(this.theme.vars["--fr-bar-radius"] ?? "0").trim();
+    this.barRadius = rawRadius === "pill" ? this.barH / 2 : Number(rawRadius) || 0;
 
     this._placeBlocks(blocks, bottomReserve);
   }

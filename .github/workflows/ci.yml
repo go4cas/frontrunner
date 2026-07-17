@@ -15,7 +15,7 @@ jobs:
           bun-version: latest
       - name: Test
         run: bun test
-      - name: Build (includes script-injection guard + inlining checks)
+      - name: Build (script-injection guard + version-drift guard)
         run: bun run build
       - name: Verify the inline bundle parses as valid JS
         run: |
@@ -34,3 +34,24 @@ jobs:
         with:
           name: frontrunner
           path: dist/index.html
+
+  deploy:
+    needs: test-and-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'go4cas/frontrunner'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Build
+        run: bun run build
+      - name: Deploy to here.now
+        env:
+          HERENOW_API_KEY: ${{ secrets.HERENOW_API_KEY }}
+        run: |
+          if [ -z "$HERENOW_API_KEY" ]; then
+            echo "::warning title=Deploy skipped::HERENOW_API_KEY secret not set — production was NOT updated."
+            exit 0
+          fi
+          bun run deploy
