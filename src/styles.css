@@ -64,6 +64,14 @@ button, select, input, textarea {
   user-select: none;
 }
 
+.hd__ver {
+  font-family: var(--fr-font-mono);
+  font-size: 10px;
+  color: var(--fr-text-muted);
+  margin-left: -4px;
+  user-select: none;
+}
+
 .hd__mark::before {
   content: "▸";
   color: var(--fr-accent);

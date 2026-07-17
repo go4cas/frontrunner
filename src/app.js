@@ -11,6 +11,7 @@ import { Painter } from "./render.js";
 import { LAYOUTS, THEMES, DEFAULT_SETTINGS, DEFAULT_BRANDING, sampleCSV, SAMPLE_NAME } from "./builtins.js";
 import { validateLayout, validateSettings, validateBranding, validateTheme, parseUserJSON, isHexColor, toSixDigitHex } from "./editors.js";
 import { migrateProject } from "./migrate.js";
+import { VERSION } from "./version.js";
 import * as share from "./share.js";
 import * as store from "./store.js";
 
@@ -1147,6 +1148,8 @@ function wire() {
 /* ---------- boot ---------- */
 
 async function boot() {
+  $("app-version").textContent = "v" + VERSION;
+  console.info(`frontrunner v${VERSION}`);
   if (VIEWER) document.body.classList.add("fr-viewer");
   wire();
   store.migrateLegacy();

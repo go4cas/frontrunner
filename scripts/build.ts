@@ -16,6 +16,14 @@ if (!result.success) {
   process.exit(1);
 }
 
+const pkg = JSON.parse(await Bun.file("./package.json").text());
+const versionSrc = await Bun.file("./src/version.js").text();
+const m = versionSrc.match(/VERSION = "([^"]+)"/);
+if (!m || m[1] !== pkg.version) {
+  console.error(`Version drift: package.json says ${pkg.version}, src/version.js says ${m?.[1] ?? "?"} — update both.`);
+  process.exit(1);
+}
+
 const js = await result.outputs[0].text();
 
 // Guard: any literal "</script" inside the bundle would terminate the inline
@@ -33,6 +41,10 @@ html = html.replace(
   () => `<style>\n${css}\n</style>`
 );
 html = html.replace(
+  "</title>",
+  () => `</title>\n<meta name="generator" content="frontrunner v${pkg.version}" />`
+);
+html = html.replace(
   /<script type="module" src="\.\/app\.js"><\/script>/,
   () => `<script type="module">\n${js}\n</script>`
 );
@@ -46,4 +58,4 @@ await mkdir("./dist", { recursive: true });
 await Bun.write("./dist/index.html", html);
 
 const kb = (html.length / 1024).toFixed(1);
-console.log(`dist/index.html written — ${kb} KB, zero external requests.`);
+console.log(`dist/index.html written — frontrunner v${pkg.version}, ${kb} KB, zero external requests.`);
