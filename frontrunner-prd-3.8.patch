@@ -1,0 +1,36 @@
+diff --git a/PRD.md b/PRD.md
+index ca18a77..ba84f30 100644
+--- a/PRD.md
++++ b/PRD.md
+@@ -1,6 +1,6 @@
+ # frontrunner — PRD
+ 
+-**Version:** 3.7 · **Date:** 2026-07-18 · **Owner:** Cas (`go4cas`)
++**Version:** 3.8 · **Date:** 2026-07-18 · **Owner:** Cas (`go4cas`)
+ **Status:** v1.6 closed (2026-07-17) · next phase: v2 (unscheduled)
+ **Live:** https://centered-tangle-v266.here.now/ · **Repo:** `go4cas/frontrunner` (MIT)
+ **One-liner:** A zero-dependency, single-file bar chart race builder that runs entirely in the browser. Drop in a CSV, watch the race, style it, brand it, share it as a link.
+@@ -60,6 +60,7 @@ The word **template** is reserved for a future bundled preset (layout + theme +
+ - **Daily/sub-year periods needed no parser changes (v1.8.0).** Detection, sorting, and normalization already handled `YYYY-MM-DD` correctly in both shapes — confirmed with 30-day fixtures, not assumed. The only real gap was cosmetic: no day-level display format. Lesson: "is X supported" is sometimes answered by writing a test against existing code, not by writing new code.
+ - **Palette overflow generates new colors instead of repeating (v1.8.0).** Beyond the curated palette, `entityColor()` now derives new hues via golden-angle rotation seeded from the palette's own average saturation/lightness — so extra entities look native to the theme rather than mismatched, and stay distinct from each other for a very long run (verified 20 deep with zero collisions) rather than silently duplicating a color meant for ~10 entries.
+ - **Background patterns are one CSS-native theme var, not an asset system (v1.8.0).** `--fr-bg-image` holds a complete CSS value (a gradient, a repeating pattern, or a `url(...)`) rather than a structured config — keeps the zero-runtime-dependency stance intact and needs no new envelope fields beyond the existing generic theme-var pass-through.
++- **Vertical column race, dropped from the roadmap (2026-07-18 research).** "Vertical" conflates two unrelated ideas. (1) Column orientation (bars growing upward) — confirmed real via Flourish and the Python `bar_chart_race` library, both offer it as a toggle — but nothing found suggests real demand for it; it reads as a checkbox feature, not something driving usage anywhere. (2) A 9:16 portrait video canvas — genuinely in demand (competitors like Flowi and Alien Art market it explicitly for TikTok/Reels; one source cites 90% higher mobile engagement for vertical video, Buffer 2025) — but this is a video-export detail, not a rendering mode, and is meaningless until WebM export exists at all. Decision: drop column-orientation as a standalone item; fold the 9:16 canvas preset into WebM export's scope instead of inventing a separate feature for it.
+ 
+ ---
+ 
+@@ -120,7 +121,7 @@ Three items from ongoing UX review, addressed in one round:
+ 
+ ### v2 — self-containment, motion, presets
+ 
+-Base64 image/logo embedding at snapshot export only · WebM export via `captureStream()` + `MediaRecorder` · JSON dataset input · `timeScale: "proportional"` · **Templates** (bundled layout+theme+settings presets) · candidate: vertical column race variant.
++Base64 image/logo embedding at snapshot export only · WebM export via `captureStream()` + `MediaRecorder` (include a 9:16 portrait canvas preset alongside 16:9 — see decision log; this is the only piece of the "vertical" idea with real backing) · JSON dataset input · `timeScale: "proportional"` · **Templates** (bundled layout+theme+settings presets).
+ 
+ ### Engineering (shipped with v1.5.7; proven throughout v1.6)
+ 
+@@ -138,5 +139,6 @@ The two-layer guardrail is live: `test/smoke.dom.test.js` (happy-dom, executes t
+ - **PRD 3.1:** v1.5 closed (placement→Layout, edge→Theme ruling recorded); guardrail suites shipped; v1.6 acceptance criteria written; incidents 5–8 logged
+ - **PRD 3.2:** v1.6 closed (six storytelling features, all acceptance criteria met); floating-block precedent recorded; incidents 9–10 logged (stale-closure hold, premature validation drop); v2 is next, unscheduled
+ - **PRD 3.3 (v1.7.0):** UX review pass (Cas) — bar thickness moved Settings→Theme; CSV color-code column added (explicit > category > index priority); duplicate-slot soft warning; mapping-screen layout and inline image-URL entry; header Layout/Theme mini-labels; Value axis and label-position controls converted from mismatched select/checkbox to consistent checkboxes; naming-collision incident 11 logged; project-file import confirmed already working (discoverability fix only, not a new feature)
++- **PRD 3.8:** v2 roadmap reframed — vertical column race dropped as unsupported by evidence (real feature elsewhere, no demonstrated demand); its one real insight (9:16 portrait canvas demand for social video) folded into WebM export's scope instead of standing alone
+ 
+ The model survived three revisions and grew simpler each time — the usual sign it converged.
