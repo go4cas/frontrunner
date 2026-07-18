@@ -450,13 +450,13 @@ function openStage(autoplay) {
   }
 
   state.playback?.pause();
-  const eventPeriods = new Set((state.events ?? []).map((e) => String(e.period)));
   state.playback = new Playback({
     length: P,
     msPerPeriod: state.settings.msPerPeriod,
     holdAtPeriod: (p) => {
       const s = state.settings;
-      const isEvent = eventPeriods.has(String(state.dataset.periods[p]));
+      // Read live — events may be added/removed after the race is built.
+      const isEvent = state.events?.some((e) => String(e.period) === String(state.dataset.periods[p]));
       return Math.max(s.endPeriodPause ?? 0, isEvent ? (s.eventPause ?? 0) : 0);
     },
     onFrame: (t) => {

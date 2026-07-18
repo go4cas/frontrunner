@@ -250,6 +250,25 @@ describe("playback holds", () => {
     expect(pb.t).toBeCloseTo(1.5, 5);
   });
 
+  test("holdAtPeriod reads live state, not a snapshot from construction time (regression)", () => {
+    const clock = fakeClock();
+    // Mimics app.js: events live on a mutable object the callback reads each call.
+    const liveEvents = [];
+    const pb = new Playback({
+      length: 4,
+      msPerPeriod: 100,
+      onFrame: () => {},
+      holdAtPeriod: (p) => (liveEvents.some((e) => e.period === p) ? 500 : 0),
+      raf: clock.raf,
+      now: clock.now,
+    });
+    // Event added AFTER the Playback was constructed — the real-world bug case.
+    liveEvents.push({ period: 1 });
+    pb.play();
+    clock.step(130);
+    expect(pb.t).toBe(1); // held, because holdAtPeriod re-reads liveEvents live
+  });
+
   test("seek resets hold tracking", () => {
     const clock = fakeClock();
     const pb = new Playback({
