@@ -90,8 +90,17 @@ test("layout pane warns when two blocks share an anchor, clears when separated",
 test("mapping screen offers image URL entry when no image column exists, and it lands on the built race", async ({ page }) => {
   await page.goto(DIST);
   await page.getByRole("button", { name: "Paste CSV instead" }).click();
-  await page.locator("#paste-input").fill("year,country,pop\n1990,Testland,10\n1990,Otherland,5\n2000,Testland,20\n2000,Otherland,9");
-  await page.locator("#paste-input").press("Control+Enter");
+  const pasteInput = page.locator("#paste-input");
+  await expect(pasteInput).toBeVisible();
+  await pasteInput.click();
+  await pasteInput.fill("year,country,pop\n1990,Testland,10\n1990,Otherland,5\n2000,Testland,20\n2000,Otherland,9");
+  await page.keyboard.down("Control");
+  await page.keyboard.press("Enter");
+  await page.keyboard.up("Control");
+
+  // Checkpoint: confirm we actually reached the mapping screen before going
+  // further — isolates "paste didn't submit" from "mapping screen is broken."
+  await expect(page.locator("#screen-mapping")).toHaveClass(/screen--active/, { timeout: 5000 });
 
   const imgSection = page.locator("#mapping-images");
   await expect(imgSection).toBeVisible();
@@ -99,6 +108,7 @@ test("mapping screen offers image URL entry when no image column exists, and it 
   await imgSection.locator("input").first().blur();
 
   await page.getByRole("button", { name: "Build race" }).click();
+  await expect(page.locator("#screen-stage")).toHaveClass(/screen--active/, { timeout: 5000 });
   await page.getByRole("button", { name: "Customize" }).click();
   await page.getByRole("tab", { name: "Data" }).click();
   await page.getByText("Add image URLs per entity").click();
