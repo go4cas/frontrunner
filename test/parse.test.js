@@ -112,6 +112,16 @@ describe("normalize", () => {
 });
 
 
+describe("degenerate datasets (regression)", () => {
+  test("single-entity, 2-row long format never lets value collide with time", () => {
+    const csv = "year,country,pop\n1990,Testland,10\n2000,Testland,20";
+    const { headers, rows } = parseCSV(csv);
+    const info = detectShape(headers, rows);
+    expect(info.mapping.value).not.toBe(info.mapping.time);
+    expect(info.mapping.value).toBe("pop");
+  });
+});
+
 describe("image column", () => {
   test("long format: URL column auto-detected and mapped per entity", () => {
     const csv = "year,country,pop,flag\n1960,China,10,https://x/cn.png\n1970,China,20,https://x/cn.png\n1970,India,5,https://x/in.png";

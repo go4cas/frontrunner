@@ -205,10 +205,18 @@ export function detectShape(headers, rows) {
     .filter((s) => s.numeric < 0.5 && s.urlish < 0.5 && s.distinct > 1)
     .sort((a, b) => b.distinct - a.distinct);
   // Value: numeric, not the chosen time column, most distinct wins.
+  // Value: numeric, not whichever column time/entity will actually use — computed
+  // via their FINAL fallback headers, not just object identity. Without this, a
+  // degenerate dataset (e.g. a single entity, or too few rows) can leave time/entity
+  // both unresolved, and the value scorer would then happily pick the time column
+  // itself as "value", silently corrupting the mapping (confirmed via a 2-row,
+  // 1-entity test case that produced value === time).
   const time = timeCands[0];
   const entity = entityCands.find((s) => s !== time);
+  const timeHeader = time?.header ?? headers[0];
+  const entityHeader = entity?.header ?? headers[1] ?? headers[0];
   const valueCands = stats
-    .filter((s) => s.numeric > 0.9 && s !== time && s !== entity)
+    .filter((s) => s.numeric > 0.9 && s.header !== timeHeader && s.header !== entityHeader)
     .sort((a, b) => b.distinct - a.distinct);
   const value = valueCands[0];
 

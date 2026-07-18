@@ -1,6 +1,6 @@
 # frontrunner — PRD
 
-**Version:** 3.3 · **Date:** 2026-07-17 · **Owner:** Cas (`go4cas`)
+**Version:** 3.4 · **Date:** 2026-07-18 · **Owner:** Cas (`go4cas`)
 **Status:** v1.6 closed (2026-07-17) · next phase: v2 (unscheduled)
 **Live:** https://centered-tangle-v266.here.now/ · **Repo:** `go4cas/frontrunner` (MIT)
 **One-liner:** A zero-dependency, single-file bar chart race builder that runs entirely in the browser. Drop in a CSV, watch the race, style it, brand it, share it as a link.
@@ -71,6 +71,7 @@ The word **template** is reserved for a future bundled preset (layout + theme + 
 9. **Stale closure over live state (v1.6.1→1.6.2).** `holdAtPeriod` captured a `Set` of event periods once, at race-build time; events added afterward in the Data panel got a caption but never a pause, since the caption path reads live state while the hold path read a snapshot. Lesson: any callback handed to a long-lived object (Playback) must re-read mutable state each call, never close over it once.
 10. **Premature validation drop (v1.6.3).** The events editor ran the strict "period and text both required" validator on every keystroke, deleting in-progress rows the instant a date was picked before text was typed — silently, since the DOM wasn't rebuilt to reveal the loss. Validation belongs at read boundaries (export, open), never mid-edit; an object a user is actively filling in is not yet invalid, it's incomplete.
 11. **Self-inflicted naming collision (v1.6.4→v1.7.0).** Adding log-scale support, I labeled it "Axis scale" — reusing wording already meaning something else (Settings→Axis→"Scale": dynamic/fixed rescaling). A third control (Layout→Axis: top/off) also used "Axis." No test catches a naming collision; it took a human UX review to surface it. Lesson: grep existing UI label strings before choosing a new one, the same discipline as grepping old code after a rename.
+12. **Value/time collision on degenerate datasets (v1.7.1, caught by the e2e layer).** The long-format detector's value-scorer excluded the time/entity columns by *object identity* (`s !== time`), not by their final fallback header. A dataset with too few rows or a single entity can leave both time and entity candidate-scoring empty (`undefined`), at which point the identity check excludes nothing — the value scorer then picks whichever numeric column comes first by header order, which can be the time column itself. Fixed by excluding on the *final fallback header string*, computed once, regardless of whether real candidates resolved. First caught by an e2e test using an unintentionally-degenerate single-entity fixture; the fix generalizes past that one test case.
 7. **Process: `git commit -am` skips untracked files** — shipped an unbuildable main (missing `version.js`). Ritual is now `git add -A` + `git commit -m`, with `bun run build` as a local pre-commit gate.
 8. **Process: the too-graceful deploy skip.** A missing secret produced green runs and a silently stale production. The skip now emits a `::warning::` annotation, deploys are gated on browser e2e, and the `generator` meta makes "what is production running" a one-line check.
 

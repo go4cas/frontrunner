@@ -90,7 +90,7 @@ test("layout pane warns when two blocks share an anchor, clears when separated",
 test("mapping screen offers image URL entry when no image column exists, and it lands on the built race", async ({ page }) => {
   await page.goto(DIST);
   await page.getByRole("button", { name: "Paste CSV instead" }).click();
-  await page.locator("#paste-input").fill("year,country,pop\n1990,Testland,10\n2000,Testland,20");
+  await page.locator("#paste-input").fill("year,country,pop\n1990,Testland,10\n1990,Otherland,5\n2000,Testland,20\n2000,Otherland,9");
   await page.locator("#paste-input").press("Control+Enter");
 
   const imgSection = page.locator("#mapping-images");
@@ -113,12 +113,14 @@ test("landing page shows the hero, and a saved race opens on click (regression: 
   // Build and save a race so a "Continue a race" entry exists.
   await page.getByText("Try the sample").click();
   await page.getByRole("button", { name: "Build race" }).click();
-  await expect(page.locator("#save-state")).toContainText("saved", { timeout: 3000 }); // autosave is debounced
-  await page.getByRole("button", { name: "New" }).click();
+  await expect(page.locator("#screen-stage")).toHaveClass(/screen--active/);
+  await expect(page.locator("#save-state")).toContainText("saved", { timeout: 6000 }); // autosave is debounced ~1s
+  await page.locator("#btn-new").click();
+  await expect(page.locator("#screen-empty")).toHaveClass(/screen--active/);
 
   await expect(page.locator(".projects__title")).toHaveText("Continue a race");
   const firstRace = page.locator(".projects__open").first();
   await expect(firstRace).toBeVisible();
   await firstRace.click();
-  await expect(page.locator("#screen-stage")).toHaveClass(/screen--active/);
+  await expect(page.locator("#screen-stage")).toHaveClass(/screen--active/, { timeout: 6000 });
 });
