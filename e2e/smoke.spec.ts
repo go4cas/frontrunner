@@ -114,7 +114,13 @@ test("mapping screen offers image URL entry when no image column exists, and it 
   // Data is the default-active tab already. The image section starts
   // EXPANDED here (button reads "Hide image URLs"), because the URL entered
   // during mapping already merged into the dataset — no toggle click needed.
-  await expect(page.locator("#panel-data input[value='https://flagcdn.com/w160/xx.png']")).toBeVisible();
+  //
+  // Note: an `input[value='...']` CSS selector queries the HTML ATTRIBUTE,
+  // which this app never sets (only the JS .value property, via typing or
+  // Object.assign) — that selector would never match here or anywhere else
+  // in a vanilla-JS input. toHaveValue() checks the live property instead.
+  const testlandRow = page.locator("#panel-data .panel__row", { hasText: "Testland" });
+  await expect(testlandRow.locator("input")).toHaveValue("https://flagcdn.com/w160/xx.png");
 });
 
 // TODO(incident): this test has failed 3x in CI at the same assertions despite
