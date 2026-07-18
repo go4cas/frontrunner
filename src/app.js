@@ -1341,11 +1341,14 @@ function wire() {
   $("btn-paste").addEventListener("click", () => {
     const ta = $("paste-input");
     ta.classList.toggle("empty__paste--open");
-    if (ta.classList.contains("empty__paste--open")) ta.focus();
+    const open = ta.classList.contains("empty__paste--open");
+    $("btn-paste-use").hidden = !open;
+    if (open) ta.focus();
   });
   $("paste-input").addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleText(e.target.value);
   });
+  $("btn-paste-use").addEventListener("click", () => handleText($("paste-input").value));
   $("btn-fetch").addEventListener("click", () => {
     const url = $("url-input").value.trim();
     if (url) fetchCSV(url);
