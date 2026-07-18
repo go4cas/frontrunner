@@ -32,6 +32,7 @@ const state = {
   theme: structuredClone(THEMES[0]),
   branding: structuredClone(DEFAULT_BRANDING),
   events: [],
+  followedEntity: null,
   painter: null,
   playback: null,
   name: "Untitled race",
@@ -82,6 +83,7 @@ function currentProject() {
     theme: state.theme,
     branding: state.branding,
     events: validateEvents(state.events).events.length ? validateEvents(state.events).events : undefined,
+    followed: state.followedEntity || undefined,
     raw: state.rawCSV ? { csv: state.rawCSV } : undefined,
   });
 }
@@ -418,6 +420,8 @@ function openProject(rawProject, { assignNewId = false } = {}) {
     state.theme = validateTheme(project.theme ?? THEMES[0]).theme;
     state.branding = validateBranding(project.branding ?? DEFAULT_BRANDING).branding;
     state.events = validateEvents(project.events).events;
+    state.followedEntity =
+      typeof project.followed === "string" && state.dataset.entities.includes(project.followed) ? project.followed : null;
     if (assignNewId) state.projectId = store.newId();
     $("project-name").value = state.name;
     openStage(VIEWER && !reducedMotion);
@@ -433,7 +437,12 @@ function openStage(autoplay) {
   syncSelect("sel-layout", "layouts", state.layout);
   syncSelect("sel-theme", "themes", state.theme);
   applyTheme(state.theme);
-  state.painter = new Painter(svg, state.dataset, state.layout, state.settings, state.theme, state.branding, state.events);
+  state.painter = new Painter(svg, state.dataset, state.layout, state.settings, state.theme, state.branding, state.events, state.followedEntity);
+  state.painter.onBarClick = (entity) => {
+    state.followedEntity = state.painter.setFollowed(entity);
+    repaint();
+    autosave();
+  };
 
   const P = state.dataset.periods.length;
   const scrub = $("scrubber");

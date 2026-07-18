@@ -122,6 +122,26 @@ describe("painter smoke (happy-dom)", () => {
     expect(firstLabel).not.toBe("China");
   });
 
+  test("follow mode dims non-followed bars and highlights the followed one", () => {
+    svg = makeSvg(document);
+    const p = new Painter(svg, ds, structuredClone(LAYOUTS[0]), structuredClone(DEFAULT_SETTINGS), structuredClone(THEMES[0]), {}, [], "China");
+    p.paint(frameState(ds, pre, DEFAULT_SETTINGS, 6));
+    const barFor = (name) =>
+      [...svg.querySelectorAll("g.fr-bar")].find((g) => g.querySelector(".fr-label")?.textContent === name);
+    expect(Number(barFor("China").getAttribute("opacity"))).toBeCloseTo(1, 1);
+    expect(barFor("China").classList.contains("fr-bar--followed")).toBe(true);
+    expect(Number(barFor("India").getAttribute("opacity"))).toBeLessThan(0.5);
+    expect(barFor("India").classList.contains("fr-bar--followed")).toBe(false);
+  });
+
+  test("setFollowed toggles: clicking the same entity releases it", () => {
+    svg = makeSvg(document);
+    const p = new Painter(svg, ds, structuredClone(LAYOUTS[0]), structuredClone(DEFAULT_SETTINGS), structuredClone(THEMES[0]), {});
+    expect(p.setFollowed("China")).toBe("China");
+    expect(p.setFollowed("China")).toBe(null);
+    expect(p.setFollowed("India")).toBe("India");
+  });
+
   test("log value scale renders without throwing across the timeline", () => {
     svg = makeSvg(document);
     const settings = { ...structuredClone(DEFAULT_SETTINGS), valueScale: "log" };

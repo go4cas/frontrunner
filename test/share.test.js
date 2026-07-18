@@ -114,6 +114,15 @@ describe("share codec", () => {
     expect("events" in bare).toBe(false);
   });
 
+  test("followed entity travels in the envelope; unset is elided", async () => {
+    const project = sampleProject();
+    project.followed = "China";
+    const back = await decodeProject((await encodeProject(project)).blob);
+    expect(back.followed).toBe("China");
+    const bare = await decodeProject((await encodeProject(sampleProject())).blob);
+    expect("followed" in bare).toBe(false);
+  });
+
   test("optional raw CSV travels in the envelope and round-trips", async () => {
     const project = sampleProject();
     project.raw = { csv: "year,country,population\n1960,China,667000000" };

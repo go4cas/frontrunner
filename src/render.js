@@ -30,7 +30,7 @@ const SOURCE_H = 18;
 const AXIS_H = 24;
 
 export class Painter {
-  constructor(svg, dataset, layout, settings, theme, branding, events) {
+  constructor(svg, dataset, layout, settings, theme, branding, events, followed) {
     this.svg = svg;
     this.dataset = dataset;
     this.layout = layout;
@@ -47,6 +47,8 @@ export class Painter {
     // Category order of first appearance drives palette-by-category.
     this.catList = [...new Set(dataset.entities.map((e) => dataset.categories?.[e]).filter(Boolean))];
     this.setEvents(events ?? [], { silent: true });
+    this.followed = followed ?? null;
+    this.onBarClick = null; // set by the host app; called with (entity) on bar click
 
     svg.textContent = "";
     this.gAxis = el("g", { class: "fr-axis" });
@@ -89,6 +91,13 @@ export class Painter {
     this.events = Array.isArray(events) ? events : [];
     this._eventMap = new Map(this.events.map((e) => [String(e.period), e.text]));
     if (!silent) this.reflow();
+  }
+
+  /** Toggle the spotlighted entity (click same entity again to release). Does
+   * not repaint itself — caller repaints so it composes with playback frames. */
+  setFollowed(entity) {
+    this.followed = this.followed === entity ? null : entity;
+    return this.followed;
   }
 
   setBranding(branding) {
@@ -327,6 +336,8 @@ export class Painter {
     let n = this.nodes.get(index);
     if (n) return n;
     const g = el("g", { class: "fr-bar" });
+    g.dataset.entity = entity;
+    g.addEventListener("click", () => this.onBarClick?.(entity));
     // Path, not rect: bars round only their leading (right) end — flat at the
     // axis, rounded where the race happens. Radius from --fr-bar-radius.
     const rect = el("path", {
@@ -422,7 +433,9 @@ export class Painter {
       const n = this._bundle(bar.index, bar.entity);
       const by = y + bar.rank * this.slotH + (this.slotH - this.barH) / 2;
       const bw = Math.max(0, (bar.value / state.axisMax) * w);
-      n.g.setAttribute("opacity", bar.opacity.toFixed(3));
+      const dim = this.followed && bar.entity !== this.followed ? 0.22 : 1;
+      n.g.setAttribute("opacity", (bar.opacity * dim).toFixed(3));
+      n.g.classList.toggle("fr-bar--followed", bar.entity === this.followed);
       n.g.style.display = "";
       n.rect.setAttribute("d", barPath(x, by, bw, this.barH, this.barRadius));
 

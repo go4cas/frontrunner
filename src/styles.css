@@ -786,3 +786,14 @@ label.lbl {
 .link--danger {
   color: var(--fr-danger, #c0392b);
 }
+
+/* ---------- follow mode ---------- */
+
+.fr-bar {
+  cursor: pointer;
+}
+
+.fr-bar--followed .fr-barshape {
+  stroke: var(--fr-text);
+  stroke-width: 2;
+}
