@@ -123,6 +123,23 @@ test("mapping screen offers image URL entry when no image column exists, and it 
   await expect(testlandRow.locator("input")).toHaveValue("https://flagcdn.com/w160/xx.png");
 });
 
+test("hero stays visible above the fold even with a long saved-races list (regression: justify-content:center clipping)", async ({ page }) => {
+  await page.goto(DIST);
+  // Seed 20 fake index entries directly — renderProjectList() only reads the
+  // index array, so these don't need to be loadable projects for this check.
+  await page.evaluate(() => {
+    const entries = Array.from({ length: 20 }, (_, i) => ({
+      id: `seed-${i}`,
+      name: `World population, 1960–2020`,
+      updated: new Date().toISOString(),
+    }));
+    localStorage.setItem("fr:index", JSON.stringify(entries));
+  });
+  await page.reload();
+  await expect(page.locator(".projects__list li")).toHaveCount(20);
+  await expect(page.locator(".hero__title")).toBeInViewport();
+});
+
 // TODO(incident): this test has failed 3x in CI at the same assertions despite
 // two rounds of hardening (id-based selectors, generous timeouts, checkpoint
 // waits), and I've been unable to get the actual Playwright error text from
