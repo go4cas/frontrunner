@@ -212,12 +212,24 @@ describe("project store", () => {
 
 describe("validateSettings", () => {
   test("defaults fill and clamp", () => {
-    const { settings } = validateSettings({ msPerPeriod: 5, topN: 999, barThickness: 3, valueFormat: { decimals: "2" } });
+    const { settings } = validateSettings({ msPerPeriod: 5, topN: 999, valueFormat: { decimals: "2" } });
     expect(settings.msPerPeriod).toBe(100);
     expect(settings.topN).toBe(50);
-    expect(settings.barThickness).toBe(0.95);
     expect(settings.valueFormat.decimals).toBe(2);
     expect(settings.easing).toBe(DEFAULT_SETTINGS.easing);
+  });
+  test("--fr-bar-thickness validates as a Theme var with the built-in default", () => {
+    const { theme } = validateTheme({});
+    expect(theme.vars["--fr-bar-thickness"]).toBe("0.72");
+    const custom = validateTheme({ vars: { "--fr-bar-thickness": "0.4" } }).theme;
+    expect(custom.vars["--fr-bar-thickness"]).toBe("0.4");
+  });
+  test("barThickness is no longer a validated Settings field (moved to Theme in v1.7.0)", () => {
+    // validateSettings clones input and only overwrites KNOWN fields — an old
+    // project's leftover settings.barThickness rides along unclamped, but
+    // nothing reads it anymore (see render.js, which reads the Theme var).
+    const { settings } = validateSettings({ barThickness: 3 });
+    expect(settings.barThickness).toBe(3); // present, unclamped, and simply unused
   });
   test("unknown easing falls back", () => {
     const { settings } = validateSettings({ easing: "bounceInSpace" });

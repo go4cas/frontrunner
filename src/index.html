@@ -20,7 +20,9 @@
   <input id="project-name" class="hd__name" value="Untitled race" aria-label="Project name" />
   <span id="save-state" class="hd__save"></span>
   <span class="hd__spacer"></span>
+  <span id="lbl-layout" class="hd__miniLabel" hidden>Layout</span>
   <select id="sel-layout" class="sel" aria-label="Layout" hidden></select>
+  <span id="lbl-theme" class="hd__miniLabel" hidden>Theme</span>
   <select id="sel-theme" class="sel" aria-label="Theme" hidden></select>
   <button id="btn-panel" class="btn" hidden aria-pressed="false">Customize</button>
   <button id="btn-share" class="btn" hidden>Copy share link</button>
@@ -34,9 +36,23 @@
 
 <!-- empty state -->
 <main id="screen-empty" class="screen empty screen--active">
+  <section class="hero">
+    <svg class="hero__mark" viewBox="0 0 64 64" aria-hidden="true">
+      <rect width="64" height="64" rx="14" fill="var(--fr-bg)" />
+      <path d="M22 17 47 32 22 47z" fill="var(--fr-accent)" />
+    </svg>
+    <h1 class="hero__title">frontrunner</h1>
+    <p class="hero__tagline">Bar chart races from a CSV. No account, no server, nothing to install.</p>
+    <ol class="hero__steps">
+      <li><span class="hero__stepnum">1</span>Drop in a CSV</li>
+      <li><span class="hero__stepnum">2</span>Style the race</li>
+      <li><span class="hero__stepnum">3</span>Share the link</li>
+    </ol>
+  </section>
+
   <div id="drop" class="drop" role="button" tabindex="0" aria-label="Drop a CSV file or click to browse">
     <p class="drop__title">Drop a CSV to start a race</p>
-    <p class="drop__hint">or click to browse — long or wide format, we'll figure it out</p>
+    <p class="drop__hint">or click to browse — long or wide format, we'll figure it out. Also accepts a .frontrunner.json project file.</p>
   </div>
   <input id="file-input" type="file" accept=".csv,.json,text/csv,application/json" hidden />
   <div class="empty__row">
@@ -50,7 +66,7 @@
     <button id="btn-sample" class="link">Try the sample: world population</button>
   </p>
   <section id="projects" class="projects" hidden>
-    <h3 class="projects__title">Your races</h3>
+    <h3 class="projects__title">Continue a race</h3>
     <ul id="projects-list" class="projects__list"></ul>
     <p id="storage-usage" class="drop__hint"></p>
   </section>
@@ -62,6 +78,7 @@
     <h2>Check the mapping<span id="shape-badge" class="badge"></span></h2>
     <p class="drop__hint" style="margin:0">We guessed which columns mean what. Correct anything that looks off.</p>
     <div class="mapping__grid" id="mapping-grid"></div>
+    <div id="mapping-images" class="mapping__images" hidden></div>
     <table class="preview" id="preview-table"></table>
     <div class="card__actions">
       <button id="btn-back" class="btn btn--ghost">Back</button>

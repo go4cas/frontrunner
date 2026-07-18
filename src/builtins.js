@@ -36,8 +36,7 @@ export const LAYOUTS = [
 // Per-project, not a library.
 export const DEFAULT_SETTINGS = {
   topN: 10,
-  barThickness: 0.72,
-  msPerPeriod: 1400,
+  msPerPeriod: 1400, // barThickness moved to Theme (--fr-bar-thickness) in v1.7.0
   easing: "easeInOutCubic",
   rankDirection: "top",
   valueScale: "linear",
@@ -84,6 +83,7 @@ export const THEMES = [
       "--fr-font-mono": FONT_MONO,
       "--fr-bar-radius": "pill",
       "--fr-period-label-size": "72",
+      "--fr-bar-thickness": "0.72",
     },
     palette: ["#4fb8ad", "#e8836f", "#c9b458", "#7d8ca3", "#a37d9c", "#6fae8f", "#d98cb3", "#8f7ee6", "#5e9ec7", "#c78f5e"],
   },
@@ -108,6 +108,7 @@ export const THEMES = [
       "--fr-font-mono": FONT_MONO,
       "--fr-bar-radius": "pill",
       "--fr-period-label-size": "72",
+      "--fr-bar-thickness": "0.72",
     },
     palette: ["#2e7f76", "#c65a41", "#a98d2c", "#5a6b85", "#8a5f80", "#4d8a68", "#b8628f", "#6a5bbf", "#3f7ea6", "#a06e3b"],
   },
@@ -132,6 +133,7 @@ export const THEMES = [
       "--fr-font-mono": FONT_MONO,
       "--fr-bar-radius": "0",
       "--fr-period-label-size": "84",
+      "--fr-bar-thickness": "0.72",
     },
     palette: ["#31d0c2", "#ff7a59", "#ffd23f", "#7aa2ff", "#e07aff", "#5ee08a", "#ff86b3", "#a68bff", "#59c2ff", "#ffab59"],
   },

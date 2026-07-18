@@ -64,7 +64,7 @@ describe("shape detection", () => {
     const { headers, rows } = parseCSV(LONG);
     const info = detectShape(headers, rows);
     expect(info.shape).toBe("long");
-    expect(info.mapping).toEqual({ time: "year", entity: "country", value: "population", image: null, category: null });
+    expect(info.mapping).toEqual({ time: "year", entity: "country", value: "population", image: null, category: null, color: null });
   });
   test("wide format", () => {
     const { headers, rows } = parseCSV(WIDE);
@@ -177,5 +177,38 @@ describe("category column", () => {
     const ds = normalize(headers, rows, info);
     expect(ds.categories.China).toBe("Asia");
     expect(ds.categories.Nigeria).toBe("Africa");
+  });
+});
+
+
+describe("color column", () => {
+  const CSV = "year,country,pop,brand_hex\n1960,China,10,#e8836f\n1970,China,20,#e8836f\n1970,India,5,#4fb8ad";
+  test("long format: hex-color column auto-detected and mapped per entity", () => {
+    const { headers, rows } = parseCSV(CSV);
+    const info = detectShape(headers, rows);
+    expect(info.mapping.color).toBe("brand_hex");
+    const ds = normalize(headers, rows, info);
+    expect(ds.colors).toEqual({ China: "#e8836f", India: "#4fb8ad" });
+  });
+  test("no candidate → color null, colors empty", () => {
+    const csv = "year,country,pop\n1960,China,10\n1970,China,20";
+    const { headers, rows } = parseCSV(csv);
+    const info = detectShape(headers, rows);
+    expect(info.mapping.color).toBe(null);
+    expect(normalize(headers, rows, info).colors).toEqual({});
+  });
+  test("wide format: color column detected among non-temporal columns", () => {
+    const csv = "country,brand_hex,1960,1970\nChina,#e8836f,10,20\nIndia,#4fb8ad,5,9";
+    const { headers, rows } = parseCSV(csv);
+    const info = detectShape(headers, rows);
+    expect(info.mapping.color).toBe("brand_hex");
+    expect(normalize(headers, rows, info).colors.India).toBe("#4fb8ad");
+  });
+  test("color and category columns coexist without colliding", () => {
+    const csv = "year,country,pop,brand_hex,continent\n1960,China,10,#e8836f,Asia\n1970,India,5,#4fb8ad,Asia\n1970,Nigeria,3,#c9b458,Africa";
+    const { headers, rows } = parseCSV(csv);
+    const info = detectShape(headers, rows);
+    expect(info.mapping.color).toBe("brand_hex");
+    expect(info.mapping.category).toBe("continent");
   });
 });

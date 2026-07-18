@@ -24,6 +24,7 @@ const state = {
   projectId: null,
   parsed: null, // { headers, rows } — live when re-mapping is possible
   rawCSV: null, // original CSV text; travels in the envelope so reopened projects can re-map
+  pendingImages: {}, // entity -> URL, entered on the mapping screen before Build race
   shapeInfo: null,
   dataset: null,
   pre: null,
@@ -48,7 +49,7 @@ function show(screen) {
     $(`screen-${s}`).classList.toggle("screen--active", s === screen);
   }
   const onStage = screen === "stage";
-  for (const id of ["sel-layout", "sel-theme", "btn-panel", "btn-share", "btn-export", "btn-new"]) {
+  for (const id of ["sel-layout", "sel-theme", "btn-panel", "btn-share", "btn-export", "btn-new", "lbl-layout", "lbl-theme"]) {
     $(id).hidden = !onStage || VIEWER;
   }
   if (!onStage) $("export-menu").hidden = true;
@@ -168,6 +169,7 @@ function handleText(text, filename = "") {
   }
   state.parsed = parsed;
   state.rawCSV = text;
+  state.pendingImages = {};
   state.projectId = null; // new data = new race; re-mapping keeps the id (see buildRace)
   state.shapeInfo = detectShape(parsed.headers, parsed.rows);
   if (filename) state.name = filename.replace(/\.[^.]+$/, "");
@@ -304,12 +306,14 @@ function renderMapping() {
     }
     sel.addEventListener("change", () => {
       info.mapping[key] = sel.value;
+      renderMapping();
     });
     wrap.append(label, sel);
     grid.append(wrap);
   };
 
   const shapeWrap = document.createElement("div");
+  shapeWrap.className = "mapping__shape";
   const shapeLabel = document.createElement("label");
   shapeLabel.className = "lbl";
   shapeLabel.textContent = "Shape";
@@ -345,6 +349,7 @@ function renderMapping() {
     }
     sel.addEventListener("change", () => {
       info.mapping[key] = sel.value || null;
+      renderMapping();
     });
     wrap.append(label, sel);
     grid.append(wrap);
@@ -366,6 +371,7 @@ function renderMapping() {
     }
     sel.addEventListener("change", () => {
       info.mapping.image = sel.value || null;
+      renderMapping();
     });
     wrap.append(label, sel);
     grid.append(wrap);
@@ -377,6 +383,7 @@ function renderMapping() {
     mkSelect("Value column", "value", headers, info.mapping.value);
     mkImageSelect();
     mkOptionalSelect("Category column", "category");
+    mkOptionalSelect("Color column (#rrggbb)", "color");
   } else {
     mkSelect("Entity column", "entity", headers, info.mapping.entity);
     const note = document.createElement("div");
@@ -385,6 +392,46 @@ function renderMapping() {
     grid.append(note);
     mkImageSelect();
     mkOptionalSelect("Category column", "category");
+    mkOptionalSelect("Color column (#rrggbb)", "color");
+  }
+
+  // No image column? Offer to add URLs right here, as part of the CSV
+  // onboarding — rather than only discoverable later in the Data tab.
+  const imgSection = $("mapping-images");
+  imgSection.textContent = "";
+  imgSection.hidden = Boolean(info.mapping.image);
+  if (!info.mapping.image) {
+    const idx = headers.indexOf(info.mapping.entity);
+    const entities = [];
+    if (idx >= 0) {
+      const seen = new Set();
+      for (const r of rows) {
+        const name = (r[idx] ?? "").trim();
+        if (name && !seen.has(name)) {
+          seen.add(name);
+          entities.push(name);
+        }
+      }
+    }
+    imgSection.append(el("p", { className: "panel__section", textContent: "Add image URLs (optional)" }));
+    imgSection.append(
+      el("p", { className: "drop__hint", style: "margin:0 0 8px" }, [
+        "No image column detected. Paste one URL per entity if you'd like flags, logos, or photos on the bars — or skip this and add them later.",
+      ])
+    );
+    state.pendingImages ??= {};
+    for (const name of entities.slice(0, 30)) {
+      const input = el("input", { className: "field", value: state.pendingImages[name] ?? "", placeholder: "https://…" });
+      input.addEventListener("change", () => {
+        const v = input.value.trim();
+        if (v) state.pendingImages[name] = v;
+        else delete state.pendingImages[name];
+      });
+      imgSection.append(el("div", { className: "panel__row" }, [labeled(name, input)]));
+    }
+    if (entities.length > 30) {
+      imgSection.append(el("p", { className: "drop__hint", textContent: `+ ${entities.length - 30} more — add the rest later in Data → Entity images.` }));
+    }
   }
 
   const table = $("preview-table");
@@ -414,13 +461,13 @@ function reshape(shape, headers) {
     return {
       shape: "wide",
       confidence: 0.5,
-      mapping: { entity: nonTemporal[0] ?? headers[0], periods: temporal.length ? temporal : headers.slice(1), image: null, category: null },
+      mapping: { entity: nonTemporal[0] ?? headers[0], periods: temporal.length ? temporal : headers.slice(1), image: null, category: null, color: null },
     };
   }
   return {
     shape: "long",
     confidence: 0.5,
-    mapping: { time: headers[0], entity: headers[1] ?? headers[0], value: headers[2] ?? headers[headers.length - 1], image: null, category: null },
+    mapping: { time: headers[0], entity: headers[1] ?? headers[0], value: headers[2] ?? headers[headers.length - 1], image: null, category: null, color: null },
   };
 }
 
@@ -430,6 +477,10 @@ function buildRace() {
   const ds = normalize(state.parsed.headers, state.parsed.rows, state.shapeInfo);
   for (const w of ds.warnings) toast(w, 4500);
   if (ds.periods.length < 2) return;
+  if (state.pendingImages && Object.keys(state.pendingImages).length) {
+    Object.assign(ds.images, state.pendingImages);
+  }
+  state.pendingImages = {};
   state.dataset = ds;
   if (!state.projectId) state.projectId = store.newId();
   openStage(reducedMotion ? false : true);
@@ -446,6 +497,13 @@ function openProject(rawProject, { assignNewId = false } = {}) {
     state.layout = validateLayout(project.layout ?? LAYOUTS[0]).layout;
     state.settings = validateSettings(project.settings ?? DEFAULT_SETTINGS).settings;
     state.theme = validateTheme(project.theme ?? THEMES[0]).theme;
+    // Migration: barThickness lived in Settings before v1.7.0. If an old
+    // project has it and the theme has no explicit override, carry it across
+    // so the race doesn't silently change appearance on reopen.
+    const legacyThickness = project.settings?.barThickness;
+    if (typeof legacyThickness === "number" && !project.theme?.vars?.["--fr-bar-thickness"]) {
+      state.theme.vars["--fr-bar-thickness"] = String(Math.max(0.2, Math.min(0.95, legacyThickness)));
+    }
     state.branding = validateBranding(project.branding ?? DEFAULT_BRANDING).branding;
     state.events = validateEvents(project.events).events;
     state.followedEntity =
@@ -742,13 +800,7 @@ function renderSettingsPane() {
     sg.topN = topN.value;
     commit();
   });
-  const thick = el("input", { type: "range", min: 0.2, max: 0.95, step: 0.05, value: sg.barThickness });
-  thick.addEventListener("input", () => {
-    sg.barThickness = thick.value;
-    commit();
-  });
-  thick.style.width = "100%";
-  pane.append(el("div", { className: "panel__row--split" }, [labeled("Top N bars", topN), labeled("Bar thickness", thick)]));
+  pane.append(el("div", { className: "panel__row" }, [labeled("Top N bars", topN)]));
 
   pane.append(el("hr", { className: "panel__hr" }), el("p", { className: "panel__section", textContent: "Motion" }));
   const speed = el("input", { className: "field", type: "number", min: 100, max: 10000, step: 100, value: sg.msPerPeriod });
@@ -757,7 +809,8 @@ function renderSettingsPane() {
     commit();
   });
   const easing = el("select", { className: "sel" });
-  for (const e of Object.keys(EASINGS)) easing.append(el("option", { value: e, textContent: e, selected: e === sg.easing }));
+  const EASING_LABELS = { linear: "Linear", easeOutQuad: "Ease out", easeInOutCubic: "Ease in-out" };
+  for (const e of Object.keys(EASINGS)) easing.append(el("option", { value: e, textContent: EASING_LABELS[e] ?? e, selected: e === sg.easing }));
   easing.addEventListener("change", () => {
     sg.easing = easing.value;
     commit();
@@ -790,7 +843,7 @@ function renderSettingsPane() {
     sg.valueScale = scale.value;
     commit();
   });
-  pane.append(el("div", { className: "panel__row--split" }, [labeled("Race direction", rankDir), labeled("Axis scale", scale)]));
+  pane.append(el("div", { className: "panel__row--split" }, [labeled("Race direction", rankDir), labeled("Value scale", scale)]));
   const ghost = el("select", { className: "sel" });
   for (const [v, label] of [["off", "Off"], ["median", "Median"], ["mean", "Mean"]]) {
     ghost.append(el("option", { value: v, textContent: label, selected: v === sg.ghostBar }));
@@ -862,6 +915,21 @@ function renderLayoutPane() {
   const t = state.layout;
   const commit = () => setLayout(validateLayout(t).layout);
 
+  // Soft warning only — stacking is an intentional painter feature (blocks
+  // sharing an anchor reserve-and-stack), but a pile-up is worth flagging
+  // since it's rarely what someone meant to do.
+  const anchorCounts = {};
+  for (const [slot, anchor] of Object.entries(t.slots)) {
+    if (slot === "axis" || anchor === "off") continue;
+    anchorCounts[anchor] = (anchorCounts[anchor] ?? []).concat(slot);
+  }
+  const crowded = Object.entries(anchorCounts).filter(([, slots]) => slots.length > 1);
+  if (crowded.length) {
+    const names = { title: "Title", logo: "Logo", clock: "Clock", total: "Total", source: "Source", legend: "Legend", caption: "Caption" };
+    const msg = crowded.map(([anchor, slots]) => `${slots.map((s) => names[s] ?? s).join(" + ")} share ${anchor}`).join("; ");
+    pane.append(el("p", { className: "panel__warn", textContent: `Heads up: ${msg} — they'll stack rather than overlap.` }));
+  }
+
   pane.append(el("p", { className: "panel__section", textContent: "Placeholders" }));
   const anchorNames = {
     "top-left": "Top left",
@@ -892,19 +960,18 @@ function renderLayoutPane() {
     });
     pane.append(el("div", { className: "panel__row" }, [labeled(label, sel)]));
   }
-  const axisSel = el("select", { className: "sel" });
-  for (const [a, an] of [["top", "Top"], ["off", "— off"]]) {
-    axisSel.append(el("option", { value: a, textContent: an, selected: a === t.slots.axis }));
-  }
-  axisSel.addEventListener("change", () => {
-    t.slots.axis = axisSel.value;
+  const axisCb = el("input", { type: "checkbox", checked: t.slots.axis === "top" });
+  axisCb.addEventListener("change", () => {
+    t.slots.axis = axisCb.checked ? "top" : "off";
     commit();
   });
-  pane.append(el("div", { className: "panel__row" }, [labeled("Value axis", axisSel)]));
+  pane.append(el("label", { className: "panel__check" }, [axisCb, document.createTextNode("Value axis")]));
 
   pane.append(el("hr", { className: "panel__hr" }), el("p", { className: "panel__section", textContent: "Bar row" }));
   const labelPos = el("select", { className: "sel" });
-  for (const p of ["outside", "inside"]) labelPos.append(el("option", { value: p, textContent: p, selected: p === t.bar.labelPosition }));
+  for (const [p, label] of [["outside", "Outside"], ["inside", "Inside"]]) {
+    labelPos.append(el("option", { value: p, textContent: label, selected: p === t.bar.labelPosition }));
+  }
   labelPos.addEventListener("change", () => {
     t.bar.labelPosition = labelPos.value;
     commit();
@@ -1051,12 +1118,19 @@ function renderThemePane() {
     th.vars["--fr-bar-radius"] = radius.value;
     commit();
   });
+  const thick = el("input", { type: "range", min: 0.2, max: 0.95, step: 0.05, value: th.vars["--fr-bar-thickness"] ?? "0.72" });
+  thick.style.width = "100%";
+  thick.addEventListener("input", () => {
+    th.vars["--fr-bar-thickness"] = String(thick.value);
+    commit();
+  });
   const clock = el("input", { className: "field", type: "number", min: 24, max: 160, value: th.vars["--fr-period-label-size"] });
   clock.addEventListener("change", () => {
     th.vars["--fr-period-label-size"] = String(clock.value);
     commit();
   });
-  pane.append(el("div", { className: "panel__row--split" }, [labeled("Bar radius", radius), labeled("Clock size", clock)]));
+  pane.append(el("div", { className: "panel__row--split" }, [labeled("Bar radius", radius), labeled("Bar thickness", thick)]));
+  pane.append(el("div", { className: "panel__row" }, [labeled("Clock size", clock)]));
 
   appendSaveAndRaw(pane, "themes", () => state.theme, (obj) => {
     const { theme, errors } = validateTheme(obj);
@@ -1070,7 +1144,7 @@ function appendSaveAndRaw(pane, kind, getCurrent, applyParsed) {
   pane.append(el("hr", { className: "panel__hr" }), el("p", { className: "panel__section", textContent: "Library" }));
 
   const nameInput = el("input", { className: "field", placeholder: "Name this…", value: "" });
-  const saveBtn = el("button", { className: "btn", textContent: "Save copy" });
+  const saveBtn = el("button", { className: "btn", textContent: "Save as new preset" });
   saveBtn.addEventListener("click", () => {
     const name = nameInput.value.trim();
     if (!name) return toast("Give it a name first.");
@@ -1218,6 +1292,7 @@ function wire() {
     state.name = "Untitled race";
     state.parsed = null;
     state.rawCSV = null;
+    state.pendingImages = {};
     state.layout = structuredClone(LAYOUTS[0]);
     state.settings = structuredClone(DEFAULT_SETTINGS);
     state.theme = structuredClone(THEMES[0]);

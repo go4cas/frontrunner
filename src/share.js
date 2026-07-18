@@ -21,6 +21,7 @@ export function makeProject({ name, dataset, mapping, layout, settings, theme, b
       values: Array.from(dataset.values, (v) => (Number.isNaN(v) ? null : v)),
       ...(dataset.images && Object.keys(dataset.images).length ? { images: dataset.images } : {}),
       ...(dataset.categories && Object.keys(dataset.categories).length ? { categories: dataset.categories } : {}),
+      ...(dataset.colors && Object.keys(dataset.colors).length ? { colors: dataset.colors } : {}),
       meta: dataset.meta,
     },
     mapping,
@@ -47,6 +48,7 @@ export function hydrateDataset(projDataset) {
     values,
     images: projDataset.images ?? {},
     categories: projDataset.categories ?? {},
+    colors: projDataset.colors ?? {},
     meta: projDataset.meta ?? {},
   };
 }

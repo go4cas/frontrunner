@@ -1,6 +1,6 @@
 # frontrunner — PRD
 
-**Version:** 3.2 · **Date:** 2026-07-17 · **Owner:** Cas (`go4cas`)
+**Version:** 3.3 · **Date:** 2026-07-17 · **Owner:** Cas (`go4cas`)
 **Status:** v1.6 closed (2026-07-17) · next phase: v2 (unscheduled)
 **Live:** https://centered-tangle-v266.here.now/ · **Repo:** `go4cas/frontrunner` (MIT)
 **One-liner:** A zero-dependency, single-file bar chart race builder that runs entirely in the browser. Drop in a CSV, watch the race, style it, brand it, share it as a link.
@@ -54,6 +54,9 @@ The word **template** is reserved for a future bundled preset (layout + theme + 
 - **Raw CSV rides in the envelope** — re-mapping after reopen beats payload purity; gzip makes it nearly free; size guard covers pathology.
 - **Images/logos by URL reference in v1.x** — keeps share links tiny; embedding is an export-time concern (v2).
 - **Anonymous → claimed here.now flow** — ship first on a 24 h URL, claim for permanence; deploys via `scripts/deploy.ts` with `HERENOW_API_KEY`.
+- **Bar thickness lives in Theme, not Settings (v1.7.0, Cas's ruling).** It reads as a *look* decision (chunky vs slender bars), same family as radius and palette, even though it's implemented as layout math. Confirms the placement/style taxonomy from v1.5 generalizes: if a knob changes what the chart *looks like* rather than *what data it shows*, it belongs to Theme.
+- **Explicit CSV color overrides category, which overrides index-cycling (v1.7.0).** Priority order matches signal strength: a person naming an exact hex color meant it specifically; a category is a grouping; bare index-cycling is the fallback nobody chose.
+- **Layout slot collisions are a soft warning, not a validation error (v1.7.0).** Multiple blocks sharing an anchor and stacking is an intentional painter feature, not a bug — but a pile-up is rarely deliberate, so the Layout pane surfaces it without blocking the choice.
 
 ---
 
@@ -67,6 +70,7 @@ The word **template** is reserved for a future bundled preset (layout + theme + 
 6. **Lost-edit script failure.** Batch edit scripts that write only at the end silently discard everything when a middle edit aborts — `barPath` shipped called-but-undefined, and it recurred once more in v1.6.4 (settings validator/defaults silently dropped mid-script). Edit scripts write per-edit now; still recurs occasionally when a script's *first* assertion fails, so this stays a live discipline, not a solved problem.
 9. **Stale closure over live state (v1.6.1→1.6.2).** `holdAtPeriod` captured a `Set` of event periods once, at race-build time; events added afterward in the Data panel got a caption but never a pause, since the caption path reads live state while the hold path read a snapshot. Lesson: any callback handed to a long-lived object (Playback) must re-read mutable state each call, never close over it once.
 10. **Premature validation drop (v1.6.3).** The events editor ran the strict "period and text both required" validator on every keystroke, deleting in-progress rows the instant a date was picked before text was typed — silently, since the DOM wasn't rebuilt to reveal the loss. Validation belongs at read boundaries (export, open), never mid-edit; an object a user is actively filling in is not yet invalid, it's incomplete.
+11. **Self-inflicted naming collision (v1.6.4→v1.7.0).** Adding log-scale support, I labeled it "Axis scale" — reusing wording already meaning something else (Settings→Axis→"Scale": dynamic/fixed rescaling). A third control (Layout→Axis: top/off) also used "Axis." No test catches a naming collision; it took a human UX review to surface it. Lesson: grep existing UI label strings before choosing a new one, the same discipline as grepping old code after a rename.
 7. **Process: `git commit -am` skips untracked files** — shipped an unbuildable main (missing `version.js`). Ritual is now `git add -A` + `git commit -m`, with `bun run build` as a local pre-commit gate.
 8. **Process: the too-graceful deploy skip.** A missing secret produced green runs and a silently stale production. The skip now emits a `::warning::` annotation, deploys are gated on browser e2e, and the `generator` meta makes "what is production running" a one-line check.
 
@@ -120,5 +124,6 @@ The two-layer guardrail is live: `test/smoke.dom.test.js` (happy-dom, executes t
 - **PRD 3.0:** document mandate slimmed to decision record + flight plan; v1.6 storytelling phase added from market survey
 - **PRD 3.1:** v1.5 closed (placement→Layout, edge→Theme ruling recorded); guardrail suites shipped; v1.6 acceptance criteria written; incidents 5–8 logged
 - **PRD 3.2:** v1.6 closed (six storytelling features, all acceptance criteria met); floating-block precedent recorded; incidents 9–10 logged (stale-closure hold, premature validation drop); v2 is next, unscheduled
+- **PRD 3.3 (v1.7.0):** UX review pass (Cas) — bar thickness moved Settings→Theme; CSV color-code column added (explicit > category > index priority); duplicate-slot soft warning; mapping-screen layout and inline image-URL entry; header Layout/Theme mini-labels; Value axis and label-position controls converted from mismatched select/checkbox to consistent checkboxes; naming-collision incident 11 logged; project-file import confirmed already working (discoverability fix only, not a new feature)
 
 The model survived three revisions and grew simpler each time — the usual sign it converged.

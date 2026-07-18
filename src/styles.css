@@ -176,6 +176,60 @@ label.lbl {
   padding: 32px;
 }
 
+.hero {
+  width: min(620px, 100%);
+  text-align: center;
+  margin-bottom: 4px;
+}
+
+.hero__mark {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 12px;
+}
+
+.hero__title {
+  font-family: var(--fr-font-mono);
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0 0 8px;
+  color: var(--fr-text);
+}
+
+.hero__tagline {
+  color: var(--fr-text-muted);
+  font-size: 15px;
+  margin: 0 0 20px;
+}
+
+.hero__steps {
+  display: flex;
+  justify-content: center;
+  gap: 28px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--fr-text-muted);
+  flex-wrap: wrap;
+}
+
+.hero__stepnum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--fr-surface-2);
+  border: 1px solid var(--fr-border);
+  color: var(--fr-accent);
+  font-weight: 700;
+  font-size: 11px;
+  margin-right: 6px;
+}
+
 .drop {
   width: min(620px, 100%);
   border: 1.5px dashed var(--fr-border);
@@ -260,6 +314,7 @@ label.lbl {
 
 .mapping__grid > div { flex: 1; min-width: 150px; }
 .mapping__grid .sel { width: 100%; }
+.mapping__shape { flex: 1 1 100%; max-width: 280px; }
 
 .preview {
   width: 100%;
@@ -524,7 +579,10 @@ label.lbl {
   gap: 10px;
   padding: 10px 14px;
   background: var(--fr-surface);
+  transition: background 0.12s ease;
 }
+
+.projects__item:has(.projects__open:hover) { background: var(--fr-surface-2); }
 
 .projects__item + .projects__item { border-top: 1px solid var(--fr-border); }
 
@@ -538,8 +596,19 @@ label.lbl {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  text-align: left;
 }
 
+.projects__open::after {
+  content: "→";
+  margin-left: 8px;
+  opacity: 0;
+  color: var(--fr-accent);
+  transition: opacity 0.12s ease;
+}
+
+.projects__open:hover::after { opacity: 1; }
 .projects__open:hover { color: var(--fr-accent); }
 
 .projects__date {
@@ -825,4 +894,31 @@ label.lbl {
   font-size: 10px;
   fill: var(--fr-text-muted);
   text-anchor: middle;
+}
+
+.panel__warn {
+  font-size: 12px;
+  color: var(--fr-accent);
+  background: color-mix(in srgb, var(--fr-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--fr-accent) 30%, transparent);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 0 0 12px;
+}
+
+.hd__miniLabel {
+  font-size: 10px;
+  color: var(--fr-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-right: -4px;
+}
+
+.mapping__images {
+  margin: 8px 0 16px;
+  padding: 12px;
+  border: 1px solid var(--fr-border);
+  border-radius: 8px;
+  max-height: 220px;
+  overflow-y: auto;
 }

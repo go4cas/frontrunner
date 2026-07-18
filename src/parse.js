@@ -91,6 +91,16 @@ export function parseValue(s) {
 }
 
 const URLISH_RE = /^(https?:\/\/|data:image\/)/i;
+const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i;
+
+/** Fraction of non-empty values in a column that look like #rrggbb hex colors. */
+function fractionHexColor(vals) {
+  const nonEmpty = vals.filter((v) => v !== "");
+  if (nonEmpty.length === 0) return 0;
+  let n = 0;
+  for (const v of nonEmpty) if (HEX_COLOR_RE.test(v)) n++;
+  return n / nonEmpty.length;
+}
 
 /** Fraction of non-empty values in a column that look like image/asset URLs. */
 function fractionUrlish(vals) {
@@ -153,8 +163,11 @@ export function detectShape(headers, rows) {
     const image = nonTemporal.find(
       (h) => h !== entity && fractionUrlish(columnValues(sample500, headers.indexOf(h))) > 0.8
     );
+    const color = nonTemporal.find(
+      (h) => h !== entity && h !== image && fractionHexColor(columnValues(sample500, headers.indexOf(h))) > 0.8
+    );
     const category = nonTemporal.find((h) => {
-      if (h === entity || h === image) return false;
+      if (h === entity || h === image || h === color) return false;
       const vals = columnValues(sample500, headers.indexOf(h));
       const d = distinct(vals.filter((v) => v !== ""));
       return fractionNumeric(vals) < 0.5 && fractionUrlish(vals) < 0.5 && d >= 2 && d <= 12 && d <= rows.length;
@@ -162,7 +175,7 @@ export function detectShape(headers, rows) {
     return {
       shape: "wide",
       confidence: 0.95,
-      mapping: { entity, periods: temporalHeaders, image: image ?? null, category: category ?? null },
+      mapping: { entity, periods: temporalHeaders, image: image ?? null, category: category ?? null, color: color ?? null },
     };
   }
 
@@ -176,6 +189,7 @@ export function detectShape(headers, rows) {
       numeric: fractionNumeric(vals),
       temporal: fractionTemporal(vals),
       urlish: fractionUrlish(vals),
+      hexColor: fractionHexColor(vals),
       distinct: distinct(vals),
       count: vals.length,
     };
@@ -200,11 +214,12 @@ export function detectShape(headers, rows) {
 
   const ok = time && entity && value;
   const image = stats.find((s) => s !== time && s !== entity && s !== value && s.urlish > 0.8);
+  const color = stats.find((s) => s !== time && s !== entity && s !== value && s !== image && s.hexColor > 0.8);
   // Category: a low-cardinality string column that isn't anything else —
   // e.g. continent, sector, party. 2–12 distinct values, each repeated.
   const category = stats.find(
     (s) =>
-      s !== time && s !== entity && s !== value && s !== image &&
+      s !== time && s !== entity && s !== value && s !== image && s !== color &&
       s.numeric < 0.5 && s.urlish < 0.5 && s.temporal < 0.5 &&
       s.distinct >= 2 && s.distinct <= 12 && s.distinct <= (entity?.distinct ?? Infinity)
   );
@@ -217,6 +232,7 @@ export function detectShape(headers, rows) {
       value: value?.header ?? headers[2] ?? headers[headers.length - 1],
       image: image?.header ?? null,
       category: category?.header ?? null,
+      color: color?.header ?? null,
     },
   };
 }
@@ -240,12 +256,14 @@ export function normalize(headers, rows, shapeInfo) {
 
   const images = {};
   const categories = {};
+  const colors = {};
   let periods, entities, get; // get(pIdx, eIdx) -> raw string
   if (shapeInfo.shape === "wide") {
-    const { entity, periods: periodHeaders, image, category } = shapeInfo.mapping;
+    const { entity, periods: periodHeaders, image, category, color } = shapeInfo.mapping;
     const eIdx = idxOf(entity);
     const imgIdx = image ? idxOf(image) : -1;
     const catIdx = category ? idxOf(category) : -1;
+    const colIdx = color ? idxOf(color) : -1;
     periods = sortPeriods(periodHeaders);
     entities = [];
     const rowOf = new Map();
@@ -262,16 +280,21 @@ export function normalize(headers, rows, shapeInfo) {
         const cat = (r[catIdx] ?? "").trim();
         if (cat) categories[name] = cat;
       }
+      if (colIdx >= 0) {
+        const hex = (r[colIdx] ?? "").trim();
+        if (hex) colors[name] = hex;
+      }
     }
     const pIdx = periods.map((p) => idxOf(p));
     get = (pi, ei) => rowOf.get(entities[ei])[pIdx[pi]];
   } else {
-    const { time, entity, value, image, category } = shapeInfo.mapping;
+    const { time, entity, value, image, category, color } = shapeInfo.mapping;
     const tIdx = idxOf(time);
     const eIdx = idxOf(entity);
     const vIdx = idxOf(value);
     const imgIdx = image ? idxOf(image) : -1;
     const catIdx = category ? idxOf(category) : -1;
+    const colIdx = color ? idxOf(color) : -1;
     const periodSet = [];
     const seenP = new Set();
     entities = [];
@@ -297,6 +320,10 @@ export function normalize(headers, rows, shapeInfo) {
       if (catIdx >= 0) {
         const cat = (r[catIdx] ?? "").trim();
         if (cat) categories[e] = cat;
+      }
+      if (colIdx >= 0) {
+        const hex = (r[colIdx] ?? "").trim();
+        if (hex) colors[e] = hex;
       }
     }
     periods = sortPeriods(periodSet);
@@ -329,6 +356,7 @@ export function normalize(headers, rows, shapeInfo) {
     values,
     images, // entity → image URL (may be empty)
     categories, // entity → category (may be empty; drives palette-by-category)
+    colors, // entity → explicit #rrggbb hex (may be empty; overrides category/index color)
     meta: { source: "csv", shape: shapeInfo.shape },
     warnings,
   };

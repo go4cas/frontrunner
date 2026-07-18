@@ -123,6 +123,15 @@ describe("share codec", () => {
     expect("followed" in bare).toBe(false);
   });
 
+  test("explicit colors travel in the envelope and hydrate", async () => {
+    const project = sampleProject();
+    project.dataset.colors = { China: "#e8836f" };
+    const { blob } = await encodeProject(project);
+    const back = await decodeProject(blob);
+    expect(back.dataset.colors.China).toBe("#e8836f");
+    expect(hydrateDataset(back.dataset).colors.China).toBe("#e8836f");
+  });
+
   test("optional raw CSV travels in the envelope and round-trips", async () => {
     const project = sampleProject();
     project.raw = { csv: "year,country,population\n1960,China,667000000" };

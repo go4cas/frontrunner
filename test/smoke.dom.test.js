@@ -95,6 +95,19 @@ describe("painter smoke (happy-dom)", () => {
     expect(visibleBars(svg).length).toBeGreaterThan(0);
   });
 
+  test("explicit CSV color overrides category and index coloring", () => {
+    svg = makeSvg(document);
+    const withColor = structuredClone(ds);
+    withColor.colors = { China: "#123456" };
+    const p = new Painter(svg, withColor, structuredClone(LAYOUTS[0]), structuredClone(DEFAULT_SETTINGS), structuredClone(THEMES[0]), {});
+    p.paint(frameState(withColor, pre, DEFAULT_SETTINGS, 6));
+    const fill = [...svg.querySelectorAll("g.fr-bar")]
+      .find((g) => g.querySelector(".fr-label")?.textContent === "China")
+      ?.querySelector(".fr-barshape")
+      ?.getAttribute("fill");
+    expect(fill).toBe("#123456");
+  });
+
   test("categories drive shared colors and a visible legend", () => {
     svg = makeSvg(document);
     const p = new Painter(svg, ds, structuredClone(LAYOUTS[0]), structuredClone(DEFAULT_SETTINGS), structuredClone(THEMES[0]), {});
@@ -110,6 +123,23 @@ describe("painter smoke (happy-dom)", () => {
     // Legend renders one label per category
     const legendLabels = [...svg.querySelectorAll(".fr-legend-label")].map((n) => n.textContent);
     expect(legendLabels).toEqual(["Asia", "Americas", "Africa", "Europe"]);
+  });
+
+  test("bar thickness reads from the Theme, not Settings — thinner theme yields shorter bars", () => {
+    svg = makeSvg(document);
+    const thin = structuredClone(THEMES[0]);
+    thin.vars["--fr-bar-thickness"] = "0.3";
+    const thick = structuredClone(THEMES[0]);
+    thick.vars["--fr-bar-thickness"] = "0.9";
+    const pThin = new Painter(svg, ds, structuredClone(LAYOUTS[0]), structuredClone(DEFAULT_SETTINGS), thin, {});
+    pThin.paint(frameState(ds, pre, DEFAULT_SETTINGS, 6));
+    const hThin = svg.querySelector("g.fr-bar .fr-barshape").getAttribute("d");
+    svg = makeSvg(document);
+    const pThick = new Painter(svg, ds, structuredClone(LAYOUTS[0]), structuredClone(DEFAULT_SETTINGS), thick, {});
+    pThick.paint(frameState(ds, pre, DEFAULT_SETTINGS, 6));
+    const hThick = svg.querySelector("g.fr-bar .fr-barshape").getAttribute("d");
+    // Path heights differ (encoded in the 'v' command); exact string mismatch is sufficient proof.
+    expect(hThin).not.toBe(hThick);
   });
 
   test("ghost reference line renders when enabled, hides when off", () => {

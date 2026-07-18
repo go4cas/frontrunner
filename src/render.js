@@ -109,10 +109,15 @@ export class Painter {
     this.reflow();
   }
 
-  /** Entity color: by category when categories exist, else by entity order. */
+  /** Entity color: explicit CSV hex overrides everything; else by category
+   * when categories exist; else by entity order. Priority is deliberate —
+   * an explicit color is the strongest signal a person can give. */
   _colorFor(index) {
+    const entity = this.dataset.entities[index];
+    const explicit = this.dataset.colors?.[entity];
+    if (explicit) return explicit;
     if (this.catList.length) {
-      const cat = this.dataset.categories?.[this.dataset.entities[index]];
+      const cat = this.dataset.categories?.[entity];
       const ci = this.catList.indexOf(cat);
       if (ci >= 0) return entityColor(ci, this.theme.palette);
     }
@@ -217,7 +222,8 @@ export class Painter {
       h: this.height - MARGIN.top - topReserve - (axisOn ? AXIS_H : 0) - MARGIN.bottom - bottomReserve,
     };
     this.slotH = this.plot.h / set.topN;
-    this.barH = this.slotH * set.barThickness;
+    const barThickness = Math.max(0.2, Math.min(0.95, Number(this.theme.vars["--fr-bar-thickness"]) || 0.72));
+    this.barH = this.slotH * barThickness;
     const rawRadius = String(this.theme.vars["--fr-bar-radius"] ?? "0").trim();
     this.barRadius = rawRadius === "pill" ? this.barH / 2 : Number(rawRadius) || 0;
 

@@ -65,7 +65,6 @@ export function validateSettings(input) {
   if (!input || typeof input !== "object") errors.push("Settings must be a JSON object.");
 
   s.topN = num(s.topN, d.topN, 1, 50);
-  s.barThickness = num(s.barThickness, d.barThickness, 0.2, 0.95);
   s.msPerPeriod = num(s.msPerPeriod, d.msPerPeriod, 100, 10000);
   s.easing = oneOf(s.easing, Object.keys(EASINGS), d.easing);
 
