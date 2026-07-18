@@ -1285,8 +1285,10 @@ function wire() {
 
   $("btn-panel").addEventListener("click", (e) => {
     const panel = $("panel");
-    panel.hidden = !panel.hidden;
-    e.currentTarget.setAttribute("aria-pressed", String(!panel.hidden));
+    const opening = !panel.classList.contains("panel--open");
+    panel.classList.toggle("panel--open", opening);
+    panel.setAttribute("aria-hidden", String(!opening));
+    e.currentTarget.setAttribute("aria-pressed", String(opening));
     state.painter?.resize();
     repaint();
   });
