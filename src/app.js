@@ -115,6 +115,34 @@ function repaint() {
   }
 }
 
+/** Total-per-period curve above the scrubber. Gated by settings.showSparkline;
+ * drawn in a 0..100 x 0..24 viewBox so it scales with the scrubber's width. */
+function renderSparkline() {
+  const spark = $("scrub-spark");
+  if (!state.dataset || !state.settings.showSparkline) {
+    spark.style.display = "none";
+    return;
+  }
+  spark.style.display = "";
+  const P = state.dataset.periods.length;
+  const E = state.dataset.entities.length;
+  const totals = state.dataset.periods.map((_, p) => {
+    let sum = 0;
+    for (let e = 0; e < E; e++) {
+      const v = state.dataset.values[p * E + e];
+      if (!Number.isNaN(v)) sum += v;
+    }
+    return sum;
+  });
+  const maxTotal = Math.max(1e-9, ...totals);
+  const pts = totals.map((v, p) => {
+    const x = P > 1 ? (p / (P - 1)) * 100 : 50;
+    const y = 22 - (v / maxTotal) * 20;
+    return `${x},${y}`;
+  });
+  spark.innerHTML = `<path d="M${pts.join(" L")}" />`;
+}
+
 function download(filename, text, type = "application/json") {
   const blob = new Blob([text], { type });
   const a = document.createElement("a");
@@ -458,25 +486,7 @@ function openStage(autoplay) {
     ticks.append(s);
   }
 
-  // Sparkline: total-per-period curve, drawn in a 0..100 x 0..24 viewBox so
-  // it scales with the scrubber's width regardless of container size.
-  const spark = $("scrub-spark");
-  spark.textContent = "";
-  const totals = state.dataset.periods.map((_, p) => {
-    let sum = 0;
-    for (let e = 0; e < state.dataset.entities.length; e++) {
-      const v = state.dataset.values[p * state.dataset.entities.length + e];
-      if (!Number.isNaN(v)) sum += v;
-    }
-    return sum;
-  });
-  const maxTotal = Math.max(1e-9, ...totals);
-  const pts = totals.map((v, p) => {
-    const x = P > 1 ? (p / (P - 1)) * 100 : 50;
-    const y = 22 - (v / maxTotal) * 20;
-    return `${x},${y}`;
-  });
-  spark.innerHTML = `<path d="M${pts.join(" L")}" />`;
+  renderSparkline();
 
   state.playback?.pause();
   state.playback = new Playback({
@@ -790,6 +800,13 @@ function renderSettingsPane() {
     commit();
   });
   pane.append(el("div", { className: "panel__row" }, [labeled("Reference line", ghost)]));
+  const sparkToggle = el("input", { type: "checkbox", checked: sg.showSparkline });
+  sparkToggle.addEventListener("change", () => {
+    sg.showSparkline = sparkToggle.checked;
+    renderSparkline();
+    commit();
+  });
+  pane.append(el("label", { className: "panel__check" }, [sparkToggle, document.createTextNode("Show sparkline")]));
 
   pane.append(el("hr", { className: "panel__hr" }), el("p", { className: "panel__section", textContent: "Value format" }));
   const notation = el("select", { className: "sel" });

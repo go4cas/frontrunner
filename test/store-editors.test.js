@@ -43,6 +43,10 @@ describe("validateLayout", () => {
     expect(validateLayout({}).layout.bar.showImage).toBe(true);
     expect(validateLayout({ bar: { showImage: false } }).layout.bar.showImage).toBe(false);
   });
+  test("showSparkline defaults on and is toggleable", () => {
+    expect(validateSettings({}).settings.showSparkline).toBe(true);
+    expect(validateSettings({ showSparkline: false }).settings.showSparkline).toBe(false);
+  });
   test("ghostBar validates with sane default", () => {
     expect(validateSettings({}).settings.ghostBar).toBe("off");
     expect(validateSettings({ ghostBar: "median" }).settings.ghostBar).toBe("median");

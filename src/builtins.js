@@ -42,6 +42,7 @@ export const DEFAULT_SETTINGS = {
   rankDirection: "top",
   valueScale: "linear",
   ghostBar: "off",
+  showSparkline: true,
   endPeriodPause: 0,
   eventPause: 1500,
   valueFormat: { notation: "compact", decimals: 1, prefix: "", suffix: "" },
