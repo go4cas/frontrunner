@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { precompute, frameState, niceTicks, formatValue, formatPeriod, Playback, EASINGS, valueFraction } from "../src/engine.js";
+import { precompute, frameState, niceTicks, formatValue, formatPeriod, Playback, EASINGS, valueFraction, entityColor } from "../src/engine.js";
 
 function ds(periods, entities, grid) {
   // grid: rows = periods, cols = entities; null = absent
@@ -362,5 +362,46 @@ describe("ghost reference bar", () => {
     const pre = precompute(dataset);
     const state = frameState(dataset, pre, { topN: 2, easing: "linear", ghostBar: "mean" }, 0.5);
     expect(state.ghostValue).toBeCloseTo(25, 5); // mean(10,20)=15, mean(30,40)=35, midpoint 25
+  });
+});
+
+
+describe("formatPeriod full-date mode", () => {
+  test("formats a day-level ISO date as 'Mon D, YYYY'", () => {
+    expect(formatPeriod("2026-01-15", "full-date")).toBe("Jan 15, 2026");
+    expect(formatPeriod("2026-11-03", "full-date")).toBe("Nov 3, 2026");
+  });
+  test("falls back gracefully for coarser periods", () => {
+    expect(formatPeriod("2026-05", "full-date")).toBe("May 2026");
+    expect(formatPeriod("2026", "full-date")).toBe("2026");
+  });
+});
+
+
+describe("entityColor overflow", () => {
+  const palette = ["#4fb8ad", "#e8836f", "#c9b458", "#7d8ca3"];
+
+  test("within palette length: returns the curated color directly, unmodified", () => {
+    for (let i = 0; i < palette.length; i++) {
+      expect(entityColor(i, palette)).toBe(palette[i]);
+    }
+  });
+
+  test("beyond palette length: generates a NEW color, not a repeat", () => {
+    const extra = entityColor(palette.length, palette);
+    expect(palette).not.toContain(extra);
+    expect(extra).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  test("beyond palette length: many overflow entities stay distinct from each other", () => {
+    const seen = new Set();
+    for (let i = palette.length; i < palette.length + 20; i++) {
+      seen.add(entityColor(i, palette));
+    }
+    expect(seen.size).toBe(20); // golden-angle rotation shouldn't collide within 20 steps
+  });
+
+  test("is deterministic — same index and palette always produce the same color", () => {
+    expect(entityColor(10, palette)).toBe(entityColor(10, palette));
   });
 });

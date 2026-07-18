@@ -30,7 +30,12 @@ html, body {
 }
 
 body {
-  background: var(--fr-bg);
+  background-color: var(--fr-bg);
+  background-image: var(--fr-bg-image, none);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   color: var(--fr-text);
   font-family: var(--fr-font-display);
   font-size: 14px;

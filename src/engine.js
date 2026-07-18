@@ -199,12 +199,65 @@ export function formatPeriod(p, mode = "raw") {
       return `${months[Number(m[2]) - 1]} ${m[1]}`;
     }
   }
+  if (mode === "full-date") {
+    const m = String(p).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) {
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return `${months[Number(m[2]) - 1]} ${Number(m[3])}, ${m[1]}`;
+    }
+    // Not a day-level date — fall back to month-year, then year, then raw.
+    const my = String(p).match(/^(\d{4})-(\d{2})/);
+    if (my) {
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      return `${months[Number(my[2]) - 1]} ${my[1]}`;
+    }
+  }
   return String(p);
 }
 
-/** Stable palette color per entity: first-appearance order, cycling. */
+function hexToHsl(hex) {
+  const r = parseInt(hex.slice(1, 3), 16) / 255;
+  const g = parseInt(hex.slice(3, 5), 16) / 255;
+  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l: l * 100 };
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h;
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) * 60;
+  else if (max === g) h = ((b - r) / d + 2) * 60;
+  else h = ((r - g) / d + 4) * 60;
+  return { h, s: s * 100, l: l * 100 };
+}
+
+function hslToHex(h, s, l) {
+  const S = s / 100;
+  const L = l / 100;
+  const k = (n) => (n + h / 30) % 12;
+  const a = S * Math.min(L, 1 - L);
+  const f = (n) => L - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  const toHex = (n) => Math.round(f(n) * 255).toString(16).padStart(2, "0");
+  return `#${toHex(0)}${toHex(8)}${toHex(4)}`;
+}
+
+const GOLDEN_ANGLE = 137.508;
+
+/** Stable palette color per entity: first-appearance order, cycling through
+ * the curated palette first. Beyond that, generates new hues via golden-angle
+ * rotation (seeded from the palette's own average saturation/lightness) so
+ * extra entities get genuinely distinct colors instead of silently repeating
+ * a curated palette meant for ~10 entries. */
 export function entityColor(index, palette) {
-  return palette[index % palette.length];
+  if (index < palette.length) return palette[index];
+  const hsls = palette.map(hexToHsl);
+  const avgS = hsls.reduce((a, c) => a + c.s, 0) / hsls.length;
+  const avgL = hsls.reduce((a, c) => a + c.l, 0) / hsls.length;
+  const seedHue = hsls[0]?.h ?? 0;
+  const steps = index - palette.length + 1;
+  const hue = (seedHue + steps * GOLDEN_ANGLE) % 360;
+  return hslToHex(hue, avgS, avgL);
 }
 
 /**

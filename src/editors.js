@@ -83,7 +83,7 @@ export function validateSettings(input) {
   s.showSparkline = Boolean(s.showSparkline ?? d.showSparkline);
   s.endPeriodPause = num(s.endPeriodPause, d.endPeriodPause, 0, 10000);
   s.eventPause = num(s.eventPause, d.eventPause, 0, 10000);
-  s.periodLabelFormat = oneOf(s.periodLabelFormat, ["raw", "year", "month-year"], d.periodLabelFormat);
+  s.periodLabelFormat = oneOf(s.periodLabelFormat, ["raw", "year", "month-year", "full-date"], d.periodLabelFormat);
   s.axisScale = oneOf(s.axisScale, ["dynamic", "fixed"], d.axisScale);
   return { settings: s, errors };
 }

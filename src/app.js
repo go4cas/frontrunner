@@ -885,7 +885,7 @@ function renderSettingsPane() {
 
   pane.append(el("hr", { className: "panel__hr" }), el("p", { className: "panel__section", textContent: "Period clock" }));
   const plf = el("select", { className: "sel" });
-  for (const [v, label] of [["raw", "As-is"], ["year", "Year only"], ["month-year", "Mon YYYY"]]) {
+  for (const [v, label] of [["raw", "As-is"], ["year", "Year only"], ["month-year", "Mon YYYY"], ["full-date", "Mon D, YYYY"]]) {
     plf.append(el("option", { value: v, textContent: label, selected: v === sg.periodLabelFormat }));
   }
   plf.addEventListener("change", () => {
@@ -1117,6 +1117,43 @@ function renderThemePane() {
   });
   pane.append(el("div", { className: "panel__row--split" }, [labeled("Bar radius", radius), labeled("Bar thickness", thick)]));
   pane.append(el("div", { className: "panel__row" }, [labeled("Clock size", clock)]));
+
+  const BG_PRESETS = {
+    none: "none",
+    glow: "radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--fr-accent) 12%, transparent), transparent 55%)",
+    dots: "repeating-radial-gradient(circle at 0 0, var(--fr-border) 0 1.5px, transparent 1.5px 26px)",
+  };
+  const currentBg = th.vars["--fr-bg-image"] ?? "none";
+  const isCustomBg = currentBg !== "none" && !Object.values(BG_PRESETS).includes(currentBg);
+  const bgSelect = el("select", { className: "sel" });
+  for (const [v, label] of [["none", "None"], ["glow", "Subtle glow"], ["dots", "Dot grid"], ["custom", "Custom image URL"]]) {
+    const selected = v === "custom" ? isCustomBg : !isCustomBg && BG_PRESETS[v] === currentBg;
+    bgSelect.append(el("option", { value: v, textContent: label, selected }));
+  }
+  const bgUrlWrap = el("div", { className: "panel__row" });
+  bgUrlWrap.style.display = isCustomBg || bgSelect.value === "custom" ? "" : "none";
+  const bgUrl = el("input", {
+    className: "field",
+    placeholder: "https://…",
+    value: isCustomBg ? (currentBg.match(/url\("([^"]*)"\)/)?.[1] ?? "") : "",
+  });
+  bgUrl.addEventListener("change", () => {
+    const v = bgUrl.value.trim();
+    th.vars["--fr-bg-image"] = v ? `url("${v}")` : "none";
+    applyTheme(state.theme); // background is a body-level CSS var, not part of the SVG paint loop
+    commit();
+  });
+  bgUrlWrap.append(labeled("Background image URL", bgUrl));
+  bgSelect.addEventListener("change", () => {
+    const v = bgSelect.value;
+    bgUrlWrap.style.display = v === "custom" ? "" : "none";
+    if (v !== "custom") {
+      th.vars["--fr-bg-image"] = BG_PRESETS[v];
+      applyTheme(state.theme);
+      commit();
+    }
+  });
+  pane.append(el("div", { className: "panel__row" }, [labeled("Background", bgSelect)]), bgUrlWrap);
 
   appendSaveAndRaw(pane, "themes", () => state.theme, (obj) => {
     const { theme, errors } = validateTheme(obj);

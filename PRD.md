@@ -1,6 +1,6 @@
 # frontrunner — PRD
 
-**Version:** 3.6 · **Date:** 2026-07-18 · **Owner:** Cas (`go4cas`)
+**Version:** 3.7 · **Date:** 2026-07-18 · **Owner:** Cas (`go4cas`)
 **Status:** v1.6 closed (2026-07-17) · next phase: v2 (unscheduled)
 **Live:** https://centered-tangle-v266.here.now/ · **Repo:** `go4cas/frontrunner` (MIT)
 **One-liner:** A zero-dependency, single-file bar chart race builder that runs entirely in the browser. Drop in a CSV, watch the race, style it, brand it, share it as a link.
@@ -57,6 +57,9 @@ The word **template** is reserved for a future bundled preset (layout + theme + 
 - **Bar thickness lives in Theme, not Settings (v1.7.0, Cas's ruling).** It reads as a *look* decision (chunky vs slender bars), same family as radius and palette, even though it's implemented as layout math. Confirms the placement/style taxonomy from v1.5 generalizes: if a knob changes what the chart *looks like* rather than *what data it shows*, it belongs to Theme.
 - **Explicit CSV color overrides category, which overrides index-cycling (v1.7.0).** Priority order matches signal strength: a person naming an exact hex color meant it specifically; a category is a grouping; bare index-cycling is the fallback nobody chose.
 - **Layout slot collisions are a soft warning, not a validation error (v1.7.0).** Multiple blocks sharing an anchor and stacking is an intentional painter feature, not a bug — but a pile-up is rarely deliberate, so the Layout pane surfaces it without blocking the choice.
+- **Daily/sub-year periods needed no parser changes (v1.8.0).** Detection, sorting, and normalization already handled `YYYY-MM-DD` correctly in both shapes — confirmed with 30-day fixtures, not assumed. The only real gap was cosmetic: no day-level display format. Lesson: "is X supported" is sometimes answered by writing a test against existing code, not by writing new code.
+- **Palette overflow generates new colors instead of repeating (v1.8.0).** Beyond the curated palette, `entityColor()` now derives new hues via golden-angle rotation seeded from the palette's own average saturation/lightness — so extra entities look native to the theme rather than mismatched, and stay distinct from each other for a very long run (verified 20 deep with zero collisions) rather than silently duplicating a color meant for ~10 entries.
+- **Background patterns are one CSS-native theme var, not an asset system (v1.8.0).** `--fr-bg-image` holds a complete CSS value (a gradient, a repeating pattern, or a `url(...)`) rather than a structured config — keeps the zero-runtime-dependency stance intact and needs no new envelope fields beyond the existing generic theme-var pass-through.
 
 ---
 
@@ -107,6 +110,13 @@ Sourced from Flourish's feature set, dexplo's option set, the Bostock/Cotgreave 
 - [x] Sparkline & ghost bar: a leader-or-total sparkline renders in the scrubber strip; a ghost reference bar (median or mean) floats at its computed value each frame.
 
 Design ruling worth recording (Cas, extending the v1.5 taxonomy): the caption block follows the same Layout-grid mechanics as every other block, but is the first to declare `reserves: false` — a precedent for any future block that's transient rather than structural.
+
+### v1.8 — polish round *(CLOSED 2026-07-18)*
+
+Three items from ongoing UX review, addressed in one round:
+- Daily/sub-year period support — verified already working (parser needed no changes); added a "Mon D, YYYY" display format for day-level periods.
+- Background patterns on Theme — a `--fr-bg-image` var (None / Subtle glow / Dot grid / Custom image URL) in the Theme pane.
+- Bar palette overflow — `entityColor()` generates new colors via golden-angle hue rotation once the curated palette is exhausted, instead of repeating.
 
 ### v2 — self-containment, motion, presets
 

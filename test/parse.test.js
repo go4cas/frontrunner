@@ -112,6 +112,35 @@ describe("normalize", () => {
 });
 
 
+describe("daily / sub-year periods", () => {
+  const days = Array.from({ length: 30 }, (_, i) => `2026-01-${String(i + 1).padStart(2, "0")}`);
+
+  test("long format: 30 daily periods detect at full confidence and sort chronologically", () => {
+    const rows = days.flatMap((d) => [`${d},AlphaCo,${100}`, `${d},BetaCo,${80}`]);
+    const csv = "date,company,value\n" + rows.join("\n");
+    const { headers, rows: parsedRows } = parseCSV(csv);
+    const info = detectShape(headers, parsedRows);
+    expect(info.confidence).toBe(1);
+    const ds = normalize(headers, parsedRows, info);
+    expect(ds.periods.length).toBe(30);
+    expect(ds.periods[0]).toBe("2026-01-01");
+    expect(ds.periods[29]).toBe("2026-01-30");
+  });
+
+  test("wide format: 30 daily-dated columns detect and sort chronologically", () => {
+    const header = "company," + days.join(",");
+    const alpha = "AlphaCo," + days.map(() => 100).join(",");
+    const csv = header + "\n" + alpha;
+    const { headers, rows } = parseCSV(csv);
+    const info = detectShape(headers, rows);
+    expect(info.shape).toBe("wide");
+    expect(info.mapping.periods.length).toBe(30);
+    const ds = normalize(headers, rows, info);
+    expect(ds.periods[0]).toBe("2026-01-01");
+    expect(ds.periods[29]).toBe("2026-01-30");
+  });
+});
+
 describe("degenerate datasets (regression)", () => {
   test("single-entity, 2-row long format never lets value collide with time", () => {
     const csv = "year,country,pop\n1990,Testland,10\n2000,Testland,20";

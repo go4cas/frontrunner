@@ -60,6 +60,9 @@ describe("validateLayout", () => {
     expect(validateSettings({ valueScale: "log" }).settings.valueScale).toBe("log");
     expect(validateSettings({ rankDirection: "sideways" }).settings.rankDirection).toBe("top");
   });
+  test("periodLabelFormat accepts full-date", () => {
+    expect(validateSettings({ periodLabelFormat: "full-date" }).settings.periodLabelFormat).toBe("full-date");
+  });
   test("caption slot validates; settings pauses clamp", () => {
     expect(validateLayout({}).layout.slots.caption).toBe("bottom-center");
     expect(validateSettings({ endPeriodPause: 500, eventPause: 99999 }).settings.endPeriodPause).toBe(500);
@@ -231,6 +234,12 @@ describe("validateSettings", () => {
     expect(settings.topN).toBe(50);
     expect(settings.valueFormat.decimals).toBe(2);
     expect(settings.easing).toBe(DEFAULT_SETTINGS.easing);
+  });
+  test("--fr-bg-image validates as a Theme var, defaulting to none", () => {
+    const { theme } = validateTheme({});
+    expect(theme.vars["--fr-bg-image"]).toBe("none");
+    const custom = validateTheme({ vars: { "--fr-bg-image": "url(\"https://x/y.png\")" } }).theme;
+    expect(custom.vars["--fr-bg-image"]).toBe("url(\"https://x/y.png\")");
   });
   test("--fr-bar-thickness validates as a Theme var with the built-in default", () => {
     const { theme } = validateTheme({});

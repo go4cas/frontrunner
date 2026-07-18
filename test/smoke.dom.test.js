@@ -95,6 +95,23 @@ describe("painter smoke (happy-dom)", () => {
     expect(visibleBars(svg).length).toBeGreaterThan(0);
   });
 
+  test("more entities than palette colors: overflow entities get distinct colors, not repeats (regression)", () => {
+    svg = makeSvg(document);
+    // 14 entities, a 10-color palette — 4 must overflow into generated hues.
+    const bigDs = {
+      periods: [2020],
+      entities: Array.from({ length: 14 }, (_, i) => `E${i}`),
+      values: Float64Array.from(Array.from({ length: 14 }, (_, i) => 100 - i)),
+      images: {}, categories: {}, colors: {},
+    };
+    const settings = { ...structuredClone(DEFAULT_SETTINGS), topN: 14 };
+    const p = new Painter(svg, bigDs, structuredClone(LAYOUTS[0]), settings, structuredClone(THEMES[0]), {});
+    p.paint(frameState(bigDs, precompute(bigDs), settings, 0));
+    const fills = [...svg.querySelectorAll("g.fr-bar .fr-barshape")].map((n) => n.getAttribute("fill"));
+    expect(fills.length).toBe(14);
+    expect(new Set(fills).size).toBe(14); // no two entities share a color
+  });
+
   test("explicit CSV color overrides category and index coloring", () => {
     svg = makeSvg(document);
     const withColor = structuredClone(ds);
