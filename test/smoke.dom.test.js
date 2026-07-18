@@ -112,6 +112,22 @@ describe("painter smoke (happy-dom)", () => {
     expect(legendLabels).toEqual(["Asia", "Americas", "Africa", "Europe"]);
   });
 
+  test("ghost reference line renders when enabled, hides when off", () => {
+    svg = makeSvg(document);
+    const settings = { ...structuredClone(DEFAULT_SETTINGS), ghostBar: "median" };
+    const p = new Painter(svg, ds, structuredClone(LAYOUTS[0]), settings, structuredClone(THEMES[0]), {});
+    p.paint(frameState(ds, pre, settings, 6));
+    const ghost = svg.querySelector(".fr-ghost");
+    expect(ghost.style.display).not.toBe("none");
+    expect(svg.querySelector(".fr-ghost-line").getAttribute("x1")).toBeTruthy();
+    expect(svg.querySelector(".fr-ghost-label").textContent).toContain("median");
+
+    const settingsOff = { ...structuredClone(DEFAULT_SETTINGS), ghostBar: "off" };
+    p.setSettings(settingsOff);
+    p.paint(frameState(ds, pre, settingsOff, 6));
+    expect(svg.querySelector(".fr-ghost").style.display).toBe("none");
+  });
+
   test("bottom-N direction visibly reorders which entities lead", () => {
     svg = makeSvg(document);
     const settings = { ...structuredClone(DEFAULT_SETTINGS), rankDirection: "bottom" };

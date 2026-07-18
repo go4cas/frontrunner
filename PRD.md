@@ -1,7 +1,7 @@
 # frontrunner — PRD
 
-**Version:** 3.1 · **Date:** 2026-07-17 · **Owner:** Cas (`go4cas`)
-**Status:** v1.5 closed (2026-07-17) · active phase: v1.6 storytelling
+**Version:** 3.2 · **Date:** 2026-07-17 · **Owner:** Cas (`go4cas`)
+**Status:** v1.6 closed (2026-07-17) · next phase: v2 (unscheduled)
 **Live:** https://centered-tangle-v266.here.now/ · **Repo:** `go4cas/frontrunner` (MIT)
 **One-liner:** A zero-dependency, single-file bar chart race builder that runs entirely in the browser. Drop in a CSV, watch the race, style it, brand it, share it as a link.
 
@@ -64,7 +64,9 @@ The word **template** is reserved for a future bundled preset (layout + theme + 
 3. **Trailing-zero trim vs decimals** — see decision log; regression test pinned by name.
 4. **Wide-shape threshold** — see decision log.
 5. **Stale-property painter crash (v1.5.0).** New code referenced `this.template` two renames after it became `this.layout`; the paint loop died on frame one. After any rename, grep the old name in *new* code too. Now caught by the DOM smoke layer.
-6. **Lost-edit script failure.** Batch edit scripts that write only at the end silently discard everything when a middle edit aborts — `barPath` shipped called-but-undefined. Edit scripts write per-edit now.
+6. **Lost-edit script failure.** Batch edit scripts that write only at the end silently discard everything when a middle edit aborts — `barPath` shipped called-but-undefined, and it recurred once more in v1.6.4 (settings validator/defaults silently dropped mid-script). Edit scripts write per-edit now; still recurs occasionally when a script's *first* assertion fails, so this stays a live discipline, not a solved problem.
+9. **Stale closure over live state (v1.6.1→1.6.2).** `holdAtPeriod` captured a `Set` of event periods once, at race-build time; events added afterward in the Data panel got a caption but never a pause, since the caption path reads live state while the hold path read a snapshot. Lesson: any callback handed to a long-lived object (Playback) must re-read mutable state each call, never close over it once.
+10. **Premature validation drop (v1.6.3).** The events editor ran the strict "period and text both required" validator on every keystroke, deleting in-progress rows the instant a date was picked before text was typed — silently, since the DOM wasn't rebuilt to reveal the loss. Validation belongs at read boundaries (export, open), never mid-edit; an object a user is actively filling in is not yet invalid, it's incomplete.
 7. **Process: `git commit -am` skips untracked files** — shipped an unbuildable main (missing `version.js`). Ritual is now `git add -A` + `git commit -m`, with `bun run build` as a local pre-commit gate.
 8. **Process: the too-graceful deploy skip.** A missing secret produced green runs and a silently stale production. The skip now emits a `::warning::` annotation, deploys are gated on browser e2e, and the `generator` meta makes "what is production running" a one-line check.
 
@@ -78,36 +80,34 @@ Shipped across 1.5.0–1.5.7: image-URL column auto-detection (URL-ish columns e
 
 Design ruling worth recording (Cas): image *placement* is a "where" → Layout; edge *style* is a "look" → Theme. The taxonomy held.
 
-### v1.6 — storytelling (from the 2026-07-17 market survey)
+### v1.6 — storytelling *(CLOSED 2026-07-17 — all acceptance criteria met)*
 
-Sourced from Flourish's feature set, dexplo's option set, the Bostock/Cotgreave critiques, and community variants. Ordered by value-per-effort:
+Sourced from Flourish's feature set, dexplo's option set, the Bostock/Cotgreave critiques, and community variants. Shipped across 1.6.0–1.6.6:
 
-1. **Category colors** — optional category column in mapping; palette assigns per category; legend block joins the Layout grid. (The viral Goodspeed COVID race was colored by category; it's what turns a race from trivia into an argument.)
-2. **Events & captions** — per-project list of (period, text); caption block in the Layout grid; optional pause-on-event. Directly answers the "single point in time, entertainment not analysis" critique.
-3. **Small proven settings** — `endPeriodPause` (linger per period), race direction top-N/bottom-N (the "worst performers" inversion), log scale.
-4. **Follow mode** — click a bar to spotlight an entity (others dim); persists in the envelope so shared links arrive pre-focused.
-5. **Timeline sparkline** — leader/total line strip fused to the scrubber (our answer to Flourish's line-timeline, in the timing-strip aesthetic).
-6. **Ghost reference bar** — a floating median/mean bar the field visibly pulls away from (dexplo's `perpendicular_bar_func`, nicely renamed).
+1. **Category colors** (1.6.0) — optional category column in mapping; palette assigns per category; legend block joins the Layout grid. (The viral Goodspeed COVID race was colored by category; it's what turns a race from trivia into an argument.)
+2. **Events & captions** (1.6.1–1.6.3) — per-project list of (period, text); caption block in the Layout grid (a *floating* block — never reserves space, since captions come and go); pause-on-event holds the race on arrival. Directly answers the "single point in time, entertainment not analysis" critique.
+3. **Settings trio** (1.6.1, 1.6.4) — `endPeriodPause` (linger every period), race direction top-N/bottom-N (the "worst performers" inversion, reversed correctly per-period even when present-entity counts vary), log axis scale (shared `valueFraction()` helper keeps bars and ticks consistent).
+4. **Follow mode** (1.6.5) — click a bar to spotlight an entity (others dim to 22%, the spotlighted bar gets a subtle outline); click again releases; persists in the envelope so shared links arrive pre-focused.
+5. **Timeline sparkline** (1.6.6) — total-per-period curve rendered as an in-flow strip above the scrubber (deliberately not an absolute overlay — safer without live visual QA feedback mid-build).
+6. **Ghost reference bar** (1.6.6) — a dashed vertical reference line at the median or mean, computed across *all* present entities each period (not just the visible topN, so it stays meaningful even when the reference entity is off-screen).
 
-**Acceptance criteria (active phase):**
+**Acceptance criteria — all met:**
 
-*Category colors* — mapping offers an optional category column; entities color per category, stable across the race; a legend block joins the Layout grid; category data round-trips in the envelope.
+- [x] Category colors: mapping offers an optional category column; entities color per category, stable across the race; a legend block joins the Layout grid; category data round-trips in the envelope.
+- [x] Events & captions: a per-project (period, text) list renders in a caption block at its Layout anchor as the race passes each period; optional pause-on-event holds for a configured beat; events round-trip.
+- [x] Settings trio: `endPeriodPause` holds each period boundary; bottom-N direction races the smallest values; log scale renders correct proportions and ticks.
+- [x] Follow mode: clicking a bar spotlights that entity (others dim), click again releases; the followed entity persists in the envelope so shared links arrive pre-focused.
+- [x] Sparkline & ghost bar: a leader-or-total sparkline renders in the scrubber strip; a ghost reference bar (median or mean) floats at its computed value each frame.
 
-*Events & captions* — a per-project (period, text) list renders in a caption block at its Layout anchor as the race passes each period; optional pause-on-event holds for a configured beat; events round-trip.
-
-*Settings trio* — `endPeriodPause` holds each period boundary; bottom-N direction races the smallest values; log scale renders correct proportions and ticks.
-
-*Follow mode* — clicking a bar spotlights that entity (others dim), click again releases; the followed entity persists in the envelope so shared links arrive pre-focused.
-
-*Sparkline & ghost bar* — a leader-or-total sparkline renders in the scrubber strip; a ghost reference bar (median or mean) floats at its computed value each frame.
+Design ruling worth recording (Cas, extending the v1.5 taxonomy): the caption block follows the same Layout-grid mechanics as every other block, but is the first to declare `reserves: false` — a precedent for any future block that's transient rather than structural.
 
 ### v2 — self-containment, motion, presets
 
 Base64 image/logo embedding at snapshot export only · WebM export via `captureStream()` + `MediaRecorder` · JSON dataset input · `timeScale: "proportional"` · **Templates** (bundled layout+theme+settings presets) · candidate: vertical column race variant.
 
-### Engineering (shipped with v1.5.7)
+### Engineering (shipped with v1.5.7; proven throughout v1.6)
 
-The two-layer guardrail is live: `test/smoke.dom.test.js` (happy-dom, executes the real painter inside `bun test`) and `e2e/smoke.spec.ts` (Chromium via Playwright in CI, including the `[hidden]`-cascade regression). CI is one workflow — test-and-build and e2e in parallel, deploy gated on both. Dev dependencies exist for testing only; runtime dependencies remain zero.
+The two-layer guardrail is live: `test/smoke.dom.test.js` (happy-dom, executes the real painter inside `bun test`) and `e2e/smoke.spec.ts` (Chromium via Playwright in CI, including the `[hidden]`-cascade regression and an events-editor data-loss regression from 1.6.3). CI is one workflow — test-and-build and e2e in parallel, deploy gated on both. 139 tests total by v1.6.6close. Dev dependencies exist for testing only; runtime dependencies remain zero.
 
 ---
 
@@ -119,5 +119,6 @@ The two-layer guardrail is live: `test/smoke.dom.test.js` (happy-dom, executes t
 - **Rev 3 (Cas):** concept renamed **Layout**; "template" reserved for future presets (v4)
 - **PRD 3.0:** document mandate slimmed to decision record + flight plan; v1.6 storytelling phase added from market survey
 - **PRD 3.1:** v1.5 closed (placement→Layout, edge→Theme ruling recorded); guardrail suites shipped; v1.6 acceptance criteria written; incidents 5–8 logged
+- **PRD 3.2:** v1.6 closed (six storytelling features, all acceptance criteria met); floating-block precedent recorded; incidents 9–10 logged (stale-closure hold, premature validation drop); v2 is next, unscheduled
 
 The model survived three revisions and grew simpler each time — the usual sign it converged.

@@ -53,8 +53,12 @@ export class Painter {
     svg.textContent = "";
     this.gAxis = el("g", { class: "fr-axis" });
     this.gBars = el("g", { class: "fr-bars" });
+    this.gGhost = el("g", { class: "fr-ghost" });
+    this.ghostLine = el("line", { class: "fr-ghost-line" });
+    this.ghostLabel = el("text", { class: "fr-ghost-label" });
+    this.gGhost.append(this.ghostLine, this.ghostLabel);
     this.gBlocks = el("g", { class: "fr-blocks" });
-    svg.append(this.gAxis, this.gBars, this.gBlocks);
+    svg.append(this.gAxis, this.gBars, this.gGhost, this.gBlocks);
 
     this.titleText = el("text", { class: "fr-title" });
     this.subtitleText = el("text", { class: "fr-subtitle" });
@@ -478,6 +482,21 @@ export class Painter {
     }
 
     this._paintAxis(state);
+
+    if (this.settings.ghostBar !== "off" && state.ghostValue != null) {
+      const gx = this.plot.x + valueFraction(state.ghostValue, state.axisMax, this.settings.valueScale) * this.plot.w;
+      this.ghostLine.setAttribute("x1", gx);
+      this.ghostLine.setAttribute("x2", gx);
+      this.ghostLine.setAttribute("y1", this.plot.y);
+      this.ghostLine.setAttribute("y2", this.plot.y + this.plot.h);
+      this.ghostLabel.setAttribute("x", gx);
+      this.ghostLabel.setAttribute("y", this.plot.y - 4);
+      this.ghostLabel.textContent =
+        (this.settings.ghostBar === "mean" ? "mean " : "median ") + formatValue(state.ghostValue, fmt);
+      this.gGhost.style.display = "";
+    } else {
+      this.gGhost.style.display = "none";
+    }
 
     if (this.layout.slots.clock !== "off") {
       this.periodText.textContent = formatPeriod(state.periodLabel, this.settings.periodLabelFormat);

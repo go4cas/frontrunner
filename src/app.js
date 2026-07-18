@@ -458,6 +458,26 @@ function openStage(autoplay) {
     ticks.append(s);
   }
 
+  // Sparkline: total-per-period curve, drawn in a 0..100 x 0..24 viewBox so
+  // it scales with the scrubber's width regardless of container size.
+  const spark = $("scrub-spark");
+  spark.textContent = "";
+  const totals = state.dataset.periods.map((_, p) => {
+    let sum = 0;
+    for (let e = 0; e < state.dataset.entities.length; e++) {
+      const v = state.dataset.values[p * state.dataset.entities.length + e];
+      if (!Number.isNaN(v)) sum += v;
+    }
+    return sum;
+  });
+  const maxTotal = Math.max(1e-9, ...totals);
+  const pts = totals.map((v, p) => {
+    const x = P > 1 ? (p / (P - 1)) * 100 : 50;
+    const y = 22 - (v / maxTotal) * 20;
+    return `${x},${y}`;
+  });
+  spark.innerHTML = `<path d="M${pts.join(" L")}" />`;
+
   state.playback?.pause();
   state.playback = new Playback({
     length: P,
@@ -761,6 +781,15 @@ function renderSettingsPane() {
     commit();
   });
   pane.append(el("div", { className: "panel__row--split" }, [labeled("Race direction", rankDir), labeled("Axis scale", scale)]));
+  const ghost = el("select", { className: "sel" });
+  for (const [v, label] of [["off", "Off"], ["median", "Median"], ["mean", "Mean"]]) {
+    ghost.append(el("option", { value: v, textContent: label, selected: v === sg.ghostBar }));
+  }
+  ghost.addEventListener("change", () => {
+    sg.ghostBar = ghost.value;
+    commit();
+  });
+  pane.append(el("div", { className: "panel__row" }, [labeled("Reference line", ghost)]));
 
   pane.append(el("hr", { className: "panel__hr" }), el("p", { className: "panel__section", textContent: "Value format" }));
   const notation = el("select", { className: "sel" });

@@ -339,3 +339,28 @@ describe("rank direction + value scale", () => {
     expect(valueFraction(0, 100, "log")).toBe(0);
   });
 });
+
+
+describe("ghost reference bar", () => {
+  test("off by default: ghostValue is null", () => {
+    const dataset = { periods: [2000, 2010], entities: ["A", "B", "C"], values: Float64Array.from([10, 20, 30, 10, 20, 30]) };
+    const pre = precompute(dataset);
+    const state = frameState(dataset, pre, { topN: 3, easing: "linear", ghostBar: "off" }, 0);
+    expect(state.ghostValue).toBe(null);
+  });
+
+  test("median computed across ALL present entities, not just visible topN", () => {
+    const dataset = { periods: [2000, 2010], entities: ["A", "B", "C", "D", "E"], values: Float64Array.from([10, 20, 30, 40, 50, 10, 20, 30, 40, 50]) };
+    const pre = precompute(dataset);
+    // topN=2 hides D and E, but the median must still reflect all 5 present values (30).
+    const state = frameState(dataset, pre, { topN: 2, easing: "linear", ghostBar: "median" }, 0);
+    expect(state.ghostValue).toBe(30);
+  });
+
+  test("mean computed across present entities and interpolates between periods", () => {
+    const dataset = { periods: [2000, 2010], entities: ["A", "B"], values: Float64Array.from([10, 20, 30, 40]) };
+    const pre = precompute(dataset);
+    const state = frameState(dataset, pre, { topN: 2, easing: "linear", ghostBar: "mean" }, 0.5);
+    expect(state.ghostValue).toBeCloseTo(25, 5); // mean(10,20)=15, mean(30,40)=35, midpoint 25
+  });
+});

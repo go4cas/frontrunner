@@ -41,6 +41,7 @@ export const DEFAULT_SETTINGS = {
   easing: "easeInOutCubic",
   rankDirection: "top",
   valueScale: "linear",
+  ghostBar: "off",
   endPeriodPause: 0,
   eventPause: 1500,
   valueFormat: { notation: "compact", decimals: 1, prefix: "", suffix: "" },

@@ -381,6 +381,20 @@ label.lbl {
   min-width: 0;
 }
 
+.scrub__spark {
+  width: 100%;
+  height: 18px;
+  display: block;
+}
+
+.scrub__spark path {
+  fill: none;
+  stroke: var(--fr-accent, var(--fr-text-muted));
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.7;
+}
+
 .scrub input[type="range"] {
   width: 100%;
   appearance: none;
@@ -796,4 +810,19 @@ label.lbl {
 .fr-bar--followed .fr-barshape {
   stroke: var(--fr-text);
   stroke-width: 2;
+}
+
+/* ---------- ghost reference bar ---------- */
+
+.fr-ghost-line {
+  stroke: var(--fr-text-muted);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
+.fr-ghost-label {
+  font-family: var(--fr-font-mono);
+  font-size: 10px;
+  fill: var(--fr-text-muted);
+  text-anchor: middle;
 }

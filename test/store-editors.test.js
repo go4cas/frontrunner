@@ -43,6 +43,11 @@ describe("validateLayout", () => {
     expect(validateLayout({}).layout.bar.showImage).toBe(true);
     expect(validateLayout({ bar: { showImage: false } }).layout.bar.showImage).toBe(false);
   });
+  test("ghostBar validates with sane default", () => {
+    expect(validateSettings({}).settings.ghostBar).toBe("off");
+    expect(validateSettings({ ghostBar: "median" }).settings.ghostBar).toBe("median");
+    expect(validateSettings({ ghostBar: "nonsense" }).settings.ghostBar).toBe("off");
+  });
   test("rankDirection and valueScale validate with sane defaults", () => {
     expect(validateSettings({}).settings.rankDirection).toBe("top");
     expect(validateSettings({}).settings.valueScale).toBe("linear");

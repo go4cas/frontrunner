@@ -71,6 +71,28 @@ export function valueFraction(value, axisMax, scale) {
 
 const lerp = (a, b, t) => a + (b - a) * t;
 
+/** Non-NaN values for one period slice (base = periodIndex * E). */
+function presentValues(values, base, E) {
+  const out = [];
+  for (let e = 0; e < E; e++) {
+    const v = values[base + e];
+    if (!Number.isNaN(v)) out.push(v);
+  }
+  return out;
+}
+
+function medianOf(arr) {
+  if (!arr.length) return 0;
+  const s = [...arr].sort((a, b) => a - b);
+  const mid = s.length >> 1;
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+function meanOf(arr) {
+  if (!arr.length) return 0;
+  return arr.reduce((a, b) => a + b, 0) / arr.length;
+}
+
 /**
  * Compute the visual state of every visible bar at continuous timeline position t.
  * t ∈ [0, P-1]. Field size and motion come from settings (topN, easing);
@@ -116,7 +138,17 @@ export function frameState(dataset, pre, settings, t) {
       ? Math.max(1e-9, pre.globalMax)
       : Math.max(1e-9, lerp(maxima[i], maxima[j], q));
   const periodLabel = periods[Math.round(tc)];
-  return { bars, axisMax, periodLabel, total, t: tc };
+
+  // Ghost reference (median/mean), computed across ALL present entities that
+  // period — not just the visible topN — so it stays meaningful even for
+  // entities off-screen. Interpolated the same way as everything else.
+  let ghostValue = null;
+  if (settings.ghostBar === "median" || settings.ghostBar === "mean") {
+    const stat = settings.ghostBar === "mean" ? meanOf : medianOf;
+    ghostValue = lerp(stat(presentValues(values, bi, E)), stat(presentValues(values, bj, E)), q);
+  }
+
+  return { bars, axisMax, periodLabel, total, ghostValue, t: tc };
 }
 
 /** Nice tick step from a 1/2/5 ladder for a given max and target count. */
