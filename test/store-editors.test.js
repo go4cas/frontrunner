@@ -43,6 +43,13 @@ describe("validateLayout", () => {
     expect(validateLayout({}).layout.bar.showImage).toBe(true);
     expect(validateLayout({ bar: { showImage: false } }).layout.bar.showImage).toBe(false);
   });
+  test("rankDirection and valueScale validate with sane defaults", () => {
+    expect(validateSettings({}).settings.rankDirection).toBe("top");
+    expect(validateSettings({}).settings.valueScale).toBe("linear");
+    expect(validateSettings({ rankDirection: "bottom" }).settings.rankDirection).toBe("bottom");
+    expect(validateSettings({ valueScale: "log" }).settings.valueScale).toBe("log");
+    expect(validateSettings({ rankDirection: "sideways" }).settings.rankDirection).toBe("top");
+  });
   test("caption slot validates; settings pauses clamp", () => {
     expect(validateLayout({}).layout.slots.caption).toBe("bottom-center");
     expect(validateSettings({ endPeriodPause: 500, eventPause: 99999 }).settings.endPeriodPause).toBe(500);

@@ -112,6 +112,24 @@ describe("painter smoke (happy-dom)", () => {
     expect(legendLabels).toEqual(["Asia", "Americas", "Africa", "Europe"]);
   });
 
+  test("bottom-N direction visibly reorders which entities lead", () => {
+    svg = makeSvg(document);
+    const settings = { ...structuredClone(DEFAULT_SETTINGS), rankDirection: "bottom" };
+    const p = new Painter(svg, ds, structuredClone(LAYOUTS[0]), settings, structuredClone(THEMES[0]), {});
+    p.paint(frameState(ds, pre, settings, 6));
+    const firstLabel = svg.querySelector("g.fr-bar .fr-label")?.textContent;
+    // With population data, the smallest nation should now lead, not China.
+    expect(firstLabel).not.toBe("China");
+  });
+
+  test("log value scale renders without throwing across the timeline", () => {
+    svg = makeSvg(document);
+    const settings = { ...structuredClone(DEFAULT_SETTINGS), valueScale: "log" };
+    const p = new Painter(svg, ds, structuredClone(LAYOUTS[0]), settings, structuredClone(THEMES[0]), {});
+    for (const t of [0, 2.5, 6]) p.paint(frameState(ds, pre, settings, t));
+    expect(visibleBars(svg).length).toBeGreaterThan(0);
+  });
+
   test("event captions appear on their period and vanish elsewhere", () => {
     svg = makeSvg(document);
     const events = [{ period: "1990", text: "The wall falls" }];

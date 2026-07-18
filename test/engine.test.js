@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { precompute, frameState, niceTicks, formatValue, formatPeriod, Playback, EASINGS } from "../src/engine.js";
+import { precompute, frameState, niceTicks, formatValue, formatPeriod, Playback, EASINGS, valueFraction } from "../src/engine.js";
 
 function ds(periods, entities, grid) {
   // grid: rows = periods, cols = entities; null = absent
@@ -286,5 +286,56 @@ describe("playback holds", () => {
     expect(pb.t).toBe(3.5);
     clock.step(30);
     expect(pb.t).toBeGreaterThan(3.5); // hold cleared by seek
+  });
+});
+
+
+describe("rank direction + value scale", () => {
+  const dataset = {
+    periods: [2000, 2010],
+    entities: ["A", "B", "C", "D"],
+    values: Float64Array.from([100, 50, 10, NaN, 200, 80, 5, NaN]),
+  };
+
+  test("top direction (default): largest values rank first", () => {
+    const pre = precompute(dataset);
+    const settings = { topN: 4, easing: "linear", rankDirection: "top" };
+    const state = frameState(dataset, pre, settings, 0);
+    const byEntity = Object.fromEntries(state.bars.map((b) => [b.entity, b.rank]));
+    expect(byEntity.A).toBeLessThan(byEntity.B);
+    expect(byEntity.B).toBeLessThan(byEntity.C);
+  });
+
+  test("bottom direction: smallest present values rank first; absent entities stay excluded", () => {
+    const pre = precompute(dataset);
+    const settings = { topN: 3, easing: "linear", rankDirection: "bottom" };
+    const state = frameState(dataset, pre, settings, 0);
+    const byEntity = Object.fromEntries(state.bars.map((b) => [b.entity, b.rank]));
+    expect(byEntity.C).toBeLessThan(byEntity.B);
+    expect(byEntity.B).toBeLessThan(byEntity.A);
+    expect(state.bars.find((b) => b.entity === "D")).toBeUndefined(); // absent, and beyond topN=3 either way
+  });
+
+  test("bottom direction reverses independently per period (different counts)", () => {
+    const ds2 = {
+      periods: [2000, 2010],
+      entities: ["A", "B", "C"],
+      values: Float64Array.from([30, 20, NaN, 30, 20, 10]), // period 0 has only 2 present
+    };
+    const pre = precompute(ds2);
+    const settings = { topN: 3, easing: "linear", rankDirection: "bottom" };
+    const p0 = frameState(ds2, pre, settings, 0);
+    const p1 = frameState(ds2, pre, settings, 1);
+    expect(p0.bars.find((b) => b.entity === "B").rank).toBe(0); // smallest of the 2 present
+    expect(p1.bars.find((b) => b.entity === "C").rank).toBe(0); // smallest of the 3 present
+  });
+
+  test("valueFraction: linear is proportional, log compresses large values", () => {
+    expect(valueFraction(50, 100, "linear")).toBeCloseTo(0.5, 5);
+    expect(valueFraction(0, 100, "linear")).toBe(0);
+    const logHalf = valueFraction(50, 100, "log");
+    expect(logHalf).toBeGreaterThan(0.5); // log scale gives small values more room
+    expect(valueFraction(100, 100, "log")).toBeCloseTo(1, 5);
+    expect(valueFraction(0, 100, "log")).toBe(0);
   });
 });

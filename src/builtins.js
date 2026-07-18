@@ -39,6 +39,8 @@ export const DEFAULT_SETTINGS = {
   barThickness: 0.72,
   msPerPeriod: 1400,
   easing: "easeInOutCubic",
+  rankDirection: "top",
+  valueScale: "linear",
   endPeriodPause: 0,
   eventPause: 1500,
   valueFormat: { notation: "compact", decimals: 1, prefix: "", suffix: "" },

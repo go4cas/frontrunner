@@ -735,6 +735,23 @@ function renderSettingsPane() {
     commit();
   });
   pane.append(el("div", { className: "panel__row--split" }, [labeled("Pause / period (ms)", periodPause), labeled("Pause on events (ms)", eventPause)]));
+  const rankDir = el("select", { className: "sel" });
+  for (const [v, label] of [["top", "Top N (largest)"], ["bottom", "Bottom N (smallest)"]]) {
+    rankDir.append(el("option", { value: v, textContent: label, selected: v === sg.rankDirection }));
+  }
+  rankDir.addEventListener("change", () => {
+    sg.rankDirection = rankDir.value;
+    commit();
+  });
+  const scale = el("select", { className: "sel" });
+  for (const [v, label] of [["linear", "Linear"], ["log", "Log"]]) {
+    scale.append(el("option", { value: v, textContent: label, selected: v === sg.valueScale }));
+  }
+  scale.addEventListener("change", () => {
+    sg.valueScale = scale.value;
+    commit();
+  });
+  pane.append(el("div", { className: "panel__row--split" }, [labeled("Race direction", rankDir), labeled("Axis scale", scale)]));
 
   pane.append(el("hr", { className: "panel__hr" }), el("p", { className: "panel__section", textContent: "Value format" }));
   const notation = el("select", { className: "sel" });

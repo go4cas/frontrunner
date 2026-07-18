@@ -78,6 +78,8 @@ export function validateSettings(input) {
     suffix: str(vf.suffix),
   };
 
+  s.rankDirection = oneOf(s.rankDirection, ["top", "bottom"], d.rankDirection);
+  s.valueScale = oneOf(s.valueScale, ["linear", "log"], d.valueScale);
   s.endPeriodPause = num(s.endPeriodPause, d.endPeriodPause, 0, 10000);
   s.eventPause = num(s.eventPause, d.eventPause, 0, 10000);
   s.periodLabelFormat = oneOf(s.periodLabelFormat, ["raw", "year", "month-year"], d.periodLabelFormat);

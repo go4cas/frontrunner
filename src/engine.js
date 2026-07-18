@@ -18,6 +18,9 @@ export function precompute(dataset) {
   const E = entities.length;
   const ranks = new Int32Array(P * E);
   const maxima = new Float64Array(P);
+  // Count of present (non-NaN) entries per period — lets bottom-N reverse
+  // ranking correctly even when some periods have fewer real entries.
+  const counts = new Int32Array(P);
   let globalMax = 0;
   const order = new Int32Array(E);
   for (let p = 0; p < P; p++) {
@@ -32,15 +35,38 @@ export function precompute(dataset) {
       return bb - aa || a - b;
     });
     let max = 0;
+    let count = 0;
     for (let r = 0; r < E; r++) {
       ranks[base + arr[r]] = r;
       const v = values[base + arr[r]];
-      if (!Number.isNaN(v) && v > max) max = v;
+      if (!Number.isNaN(v)) {
+        count++;
+        if (v > max) max = v;
+      }
     }
     maxima[p] = max;
+    counts[p] = count;
     if (max > globalMax) globalMax = max;
   }
-  return { ranks, maxima, globalMax };
+  return { ranks, maxima, counts, globalMax };
+}
+
+/** Reverse a rank within the present-entry count for bottom-N mode; ranks at
+ * or beyond count (absent entities) pass through unchanged so they stay excluded. */
+function directedRank(rawRank, count, direction) {
+  if (direction !== "bottom") return rawRank;
+  return rawRank < count ? count - 1 - rawRank : rawRank;
+}
+
+/** Map a value to a [0,1] fraction of the axis, linear or log10-based.
+ * Log baseline is +1 so zero values sit at the origin without -Infinity. */
+export function valueFraction(value, axisMax, scale) {
+  const v = Math.max(0, value);
+  const m = Math.max(1e-9, axisMax);
+  if (scale === "log") {
+    return Math.log10(v + 1) / Math.log10(m + 1);
+  }
+  return v / m;
 }
 
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -54,7 +80,7 @@ const lerp = (a, b, t) => a + (b - a) * t;
  */
 export function frameState(dataset, pre, settings, t) {
   const { periods, entities, values } = dataset;
-  const { ranks, maxima } = pre;
+  const { ranks, maxima, counts } = pre;
   const P = periods.length;
   const E = entities.length;
   const topN = Math.min(settings.topN, E);
@@ -76,7 +102,10 @@ export function frameState(dataset, pre, settings, t) {
     const v1 = Number.isNaN(values[bj + e]) ? 0 : values[bj + e];
     const v = lerp(v0, v1, q);
     total += v;
-    const r = lerp(clampR(ranks[bi + e]), clampR(ranks[bj + e]), q);
+    const dir = settings.rankDirection;
+    const rI = directedRank(ranks[bi + e], counts[i], dir);
+    const rJ = directedRank(ranks[bj + e], counts[j], dir);
+    const r = lerp(clampR(rI), clampR(rJ), q);
     const opacity = Math.max(0, Math.min(1, topN - r));
     if (opacity <= 0) continue;
     bars.push({ entity: entities[e], index: e, value: v, rank: r, opacity });

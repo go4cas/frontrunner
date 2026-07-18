@@ -8,7 +8,7 @@
 // RESERVE space (the plot shrinks); the clock and total FLOAT over the plot,
 // as is traditional for the big year readout.
 
-import { niceTicks, formatValue, formatPeriod, entityColor } from "./engine.js";
+import { niceTicks, formatValue, formatPeriod, entityColor, valueFraction } from "./engine.js";
 
 const NS = "http://www.w3.org/2000/svg";
 
