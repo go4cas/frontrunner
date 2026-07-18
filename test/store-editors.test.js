@@ -49,6 +49,12 @@ describe("validateLayout", () => {
     expect(validateSettings({ eventPause: 99999 }).settings.eventPause).toBe(10000);
     expect(validateSettings({}).settings.eventPause).toBe(1500);
   });
+  test("validateEvents drops incomplete entries (why it must not run on every keystroke)", () => {
+    // This is precisely the shape of an in-progress row: period picked,
+    // text not yet typed. If an editor called validateEvents on every
+    // change, this object would vanish before the person finished typing.
+    expect(validateEvents([{ period: "1990", text: "" }]).events).toEqual([]);
+  });
   test("validateEvents trims, caps, and drops empties", () => {
     const { events } = validateEvents([
       { period: 1990, text: "  Wall falls  " },

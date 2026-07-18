@@ -81,7 +81,7 @@ function currentProject() {
     settings: state.settings,
     theme: state.theme,
     branding: state.branding,
-    events: state.events?.length ? state.events : undefined,
+    events: validateEvents(state.events).events.length ? validateEvents(state.events).events : undefined,
     raw: state.rawCSV ? { csv: state.rawCSV } : undefined,
   });
 }
@@ -653,8 +653,12 @@ function renderDataPane() {
       evWrap.append(el("div", { className: "panel__row panel__row--event" }, [periodSel, text, del]));
     });
   };
+  // Deliberately does NOT run validateEvents here: it drops entries missing
+  // a period or text, which is normal mid-edit (e.g. date picked, text not
+  // typed yet) — validating away an in-progress row would silently orphan
+  // the object the inputs' closures point to. Strict validation happens
+  // only at read boundaries: currentProject() (export/save) and openProject().
   const commitEvents = () => {
-    state.events = validateEvents(state.events).events;
     state.painter?.setEvents(state.events);
     repaint();
     autosave();

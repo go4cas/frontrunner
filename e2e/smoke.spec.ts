@@ -49,3 +49,20 @@ test("export menu opens and offers both artifact types", async ({ page }) => {
   await expect(page.getByRole("button", { name: /Project file/ })).toBeVisible();
   await expect(page.getByRole("button", { name: /Standalone race/ })).toBeVisible();
 });
+
+test("adding a second event does not lose the first (regression: premature validation drop)", async ({ page }) => {
+  await page.goto(DIST);
+  await page.getByText("Try the sample").click();
+  await page.getByRole("button", { name: "Build race" }).click();
+  await page.getByRole("button", { name: "Customize" }).click();
+
+  await page.getByRole("button", { name: "+ Add event" }).click();
+  const rows = page.locator(".panel__row--event");
+  await rows.nth(0).locator("select").selectOption({ index: 1 });
+  await rows.nth(0).locator("input").fill("First event");
+  await rows.nth(0).locator("input").blur();
+
+  await page.getByRole("button", { name: "+ Add event" }).click();
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0).locator("input")).toHaveValue("First event");
+});
