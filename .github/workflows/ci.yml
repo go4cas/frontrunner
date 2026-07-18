@@ -52,6 +52,15 @@ jobs:
         run: bun run build
       - name: Browser smoke tests
         run: bunx playwright test
+      - name: Upload Playwright report (only on failure)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
 
   deploy:
     needs: [test-and-build, e2e]
