@@ -62,7 +62,14 @@ button, select, input, textarea {
   letter-spacing: 0.02em;
   white-space: nowrap;
   user-select: none;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--fr-text);
+  cursor: pointer;
 }
+
+.hd__mark:hover { color: var(--fr-accent); }
 
 .hd__ver {
   font-family: var(--fr-font-mono);
@@ -182,10 +189,10 @@ label.lbl {
   margin-bottom: 4px;
 }
 
-.hero__mark {
-  width: 44px;
-  height: 44px;
-  margin-bottom: 12px;
+.hero__illustration {
+  width: 220px;
+  height: auto;
+  margin-bottom: 16px;
 }
 
 .hero__title {
@@ -898,9 +905,9 @@ label.lbl {
 
 .panel__warn {
   font-size: 12px;
-  color: var(--fr-accent);
-  background: color-mix(in srgb, var(--fr-accent) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--fr-accent) 30%, transparent);
+  color: #d9822b;
+  background: color-mix(in srgb, #d9822b 14%, transparent);
+  border: 1px solid color-mix(in srgb, #d9822b 35%, transparent);
   border-radius: 6px;
   padding: 8px 10px;
   margin: 0 0 12px;

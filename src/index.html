@@ -15,7 +15,7 @@
 <body>
 
 <header class="hd">
-  <span class="hd__mark">frontrunner</span>
+  <button id="hd-home" class="hd__mark" aria-label="Back to landing page">frontrunner</button>
   <span id="app-version" class="hd__ver"></span>
   <input id="project-name" class="hd__name" value="Untitled race" aria-label="Project name" />
   <span id="save-state" class="hd__save"></span>
@@ -37,9 +37,15 @@
 <!-- empty state -->
 <main id="screen-empty" class="screen empty screen--active">
   <section class="hero">
-    <svg class="hero__mark" viewBox="0 0 64 64" aria-hidden="true">
-      <rect width="64" height="64" rx="14" fill="var(--fr-bg)" />
-      <path d="M22 17 47 32 22 47z" fill="var(--fr-accent)" />
+    <svg class="hero__illustration" viewBox="0 0 260 120" aria-hidden="true">
+      <rect x="0" y="14" width="185" height="16" rx="8" fill="#4fb8ad" />
+      <rect x="0" y="40" width="150" height="16" rx="8" fill="#e8836f" />
+      <rect x="0" y="66" width="110" height="16" rx="8" fill="#c9b458" />
+      <rect x="0" y="92" width="70" height="16" rx="8" fill="#7d8ca3" />
+      <circle cx="185" cy="22" r="11" fill="#4fb8ad" />
+      <circle cx="150" cy="48" r="11" fill="#e8836f" />
+      <circle cx="110" cy="74" r="11" fill="#c9b458" />
+      <circle cx="70" cy="100" r="11" fill="#7d8ca3" />
     </svg>
     <h1 class="hero__title">frontrunner</h1>
     <p class="hero__tagline">Bar chart races from a CSV. No account, no server, nothing to install.</p>

@@ -110,17 +110,14 @@ test("mapping screen offers image URL entry when no image column exists, and it 
 
   await page.getByRole("button", { name: "Build race" }).click();
   await expect(page.locator("#screen-stage")).toHaveClass(/screen--active/, { timeout: 5000 });
-  await page.getByRole("button", { name: "Customize" }).click();
-  // Data is the default-active tab already. The image section starts
-  // EXPANDED here (button reads "Hide image URLs"), because the URL entered
-  // during mapping already merged into the dataset — no toggle click needed.
-  //
-  // Note: an `input[value='...']` CSS selector queries the HTML ATTRIBUTE,
-  // which this app never sets (only the JS .value property, via typing or
-  // Object.assign) — that selector would never match here or anywhere else
-  // in a vanilla-JS input. toHaveValue() checks the live property instead.
-  const testlandRow = page.locator("#panel-data .panel__row", { hasText: "Testland" });
-  await expect(testlandRow.locator("input")).toHaveValue("https://flagcdn.com/w160/xx.png");
+  // Confirm the URL entered during mapping actually made it into the built
+  // race — checked via the painter's rendered <image>, which the app sets
+  // with a real setAttribute("href", ...) call (unlike a plain input's
+  // .value, an SVG image's href is a genuine HTML attribute, so a CSS
+  // attribute selector is valid here). The Data tab no longer offers a
+  // separate post-build image editor — the CSV/mapping step is the sole
+  // source, per product direction.
+  await expect(page.locator('.fr-bar image[href="https://flagcdn.com/w160/xx.png"]')).toHaveCount(1);
 });
 
 test("hero stays visible above the fold even with a long saved-races list (regression: justify-content:center clipping)", async ({ page }) => {

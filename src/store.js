@@ -56,7 +56,11 @@ export function saveProjectAs(id, project) {
 
 export function loadProjectById(id) {
   const project = read(PROJECT_PREFIX + id, null);
-  return project?.frontrunner === 1 ? project : null;
+  // Any numeric envelope version is acceptable — migrateProject() (called by
+  // the app on open) handles upgrading older formats. Requiring an exact
+  // version here meant every project saved under a newer envelope (v4+)
+  // silently failed to reload, forever, since the version was introduced.
+  return typeof project?.frontrunner === "number" ? project : null;
 }
 
 export function deleteProject(id) {

@@ -2,6 +2,8 @@
 // Project envelope + share-link codec: JSON → gzip (CompressionStream) → base64url.
 // Works in browsers, Bun, and Node 22+ (all expose CompressionStream + btoa/atob... almost).
 
+import { FORMAT_VERSION } from "./migrate.js";
+
 export const WARN_BYTES = 16 * 1024;
 export const REFUSE_BYTES = 50 * 1024;
 
@@ -12,7 +14,7 @@ export function supported() {
 /** Build a self-contained project envelope (format v4). Dataset values serialize as a plain array. */
 export function makeProject({ name, dataset, mapping, layout, settings, theme, branding, events, followed, raw }) {
   return {
-    frontrunner: 4,
+    frontrunner: FORMAT_VERSION,
     name,
     created: new Date().toISOString(),
     dataset: {

@@ -2,6 +2,7 @@ import { describe, expect, test, beforeEach } from "bun:test";
 import { validateLayout, validateSettings, validateEvents, validateBranding, validateTheme, parseUserJSON, isHexColor, toSixDigitHex } from "../src/editors.js";
 import { DEFAULT_SETTINGS } from "../src/builtins.js";
 import { LAYOUTS, THEMES } from "../src/builtins.js";
+import { FORMAT_VERSION } from "../src/migrate.js";
 
 // localStorage shim for store tests (Bun has no DOM storage).
 function makeStorageShim() {
@@ -146,7 +147,7 @@ describe("project store", () => {
     globalThis.localStorage = makeStorageShim();
   });
 
-  const project = (name) => ({ frontrunner: 1, name, dataset: { periods: [], entities: [], values: [] } });
+  const project = (name) => ({ frontrunner: FORMAT_VERSION, name, dataset: { periods: [], entities: [], values: [] } });
 
   test("save, list, load round-trip", () => {
     const id = store.newId();
@@ -155,6 +156,14 @@ describe("project store", () => {
     expect(list.length).toBe(1);
     expect(list[0].name).toBe("Race A");
     expect(store.loadProjectById(id).name).toBe("Race A");
+  });
+
+  test("loads projects under the current version, an old version, and a hypothetical future version (regression: hardcoded === 1 check broke every real save)", () => {
+    for (const version of [1, FORMAT_VERSION, FORMAT_VERSION + 1]) {
+      const id = store.newId();
+      store.saveProjectAs(id, { frontrunner: version, name: `v${version}`, dataset: { periods: [], entities: [], values: [] } });
+      expect(store.loadProjectById(id)?.name).toBe(`v${version}`);
+    }
   });
 
   test("saving again updates, not duplicates", () => {
@@ -184,7 +193,12 @@ describe("project store", () => {
   });
 
   test("legacy autosave migrates once", () => {
-    localStorage.setItem("fr:autosave", JSON.stringify(project("old race")));
+    // Deliberately NOT the shared project() helper — "legacy" specifically
+    // means the pre-index single-slot format, which was always version 1.
+    localStorage.setItem(
+      "fr:autosave",
+      JSON.stringify({ frontrunner: 1, name: "old race", dataset: { periods: [], entities: [], values: [] } })
+    );
     store.migrateLegacy();
     expect(store.listProjects().length).toBe(1);
     expect(store.listProjects()[0].name).toBe("old race");

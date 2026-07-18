@@ -110,6 +110,24 @@ function touch() {
   autosave();
 }
 
+/** Reset to a blank slate and return to the landing screen — shared by the
+ * "New" button and clicking the header wordmark. */
+function goToLanding() {
+  state.playback?.pause();
+  history.replaceState(null, "", location.pathname);
+  state.projectId = null;
+  state.name = "Untitled race";
+  state.parsed = null;
+  state.rawCSV = null;
+  state.pendingImages = {};
+  state.layout = structuredClone(LAYOUTS[0]);
+  state.settings = structuredClone(DEFAULT_SETTINGS);
+  state.theme = structuredClone(THEMES[0]);
+  state.branding = structuredClone(DEFAULT_BRANDING);
+  $("project-name").value = state.name;
+  show("empty");
+}
+
 function repaint() {
   if (state.painter && state.playback) {
     state.painter.paint(frameState(state.dataset, state.pre, state.settings, state.playback.t));
@@ -430,7 +448,7 @@ function renderMapping() {
       imgSection.append(el("div", { className: "panel__row" }, [labeled(name, input)]));
     }
     if (entities.length > 30) {
-      imgSection.append(el("p", { className: "drop__hint", textContent: `+ ${entities.length - 30} more — add the rest later in Data → Entity images.` }));
+      imgSection.append(el("p", { className: "drop__hint", textContent: `+ ${entities.length - 30} more — showing the first 30 here.` }));
     }
   }
 
@@ -685,42 +703,10 @@ function renderDataPane() {
   if (cats.length) {
     pane.append(el("p", { className: "panel__stat", innerHTML: `<b>${cats.length}</b> categories: ${cats.join(", ")}` }));
   }
-  // Entity images: URL per entity, edited live. Broken URLs degrade to plain bars.
-  pane.append(el("hr", { className: "panel__hr" }), el("p", { className: "panel__section", textContent: "Entity images" }));
-  ds.images ??= {};
-  const hasAny = Object.keys(ds.images).length > 0;
-  const imgWrap = el("div");
-  imgWrap.style.display = hasAny ? "" : "none";
-  const renderImageInputs = () => {
-    imgWrap.textContent = "";
-    for (const entity of ds.entities) {
-      const input = el("input", { className: "field", value: ds.images[entity] ?? "", placeholder: "https://…" });
-      // Commit as-you-type (debounced) — blur is not required. Editing a URL
-      // also clears it from the failed-image blacklist so it retries.
-      const commitUrl = store.debounce(() => {
-        const v = input.value.trim();
-        const prev = ds.images[entity];
-        if (v) ds.images[entity] = v;
-        else delete ds.images[entity];
-        state.painter?.retryImage(prev);
-        state.painter?.retryImage(v);
-        repaint();
-        autosave();
-      }, 400);
-      input.addEventListener("input", commitUrl);
-      input.addEventListener("change", commitUrl);
-      imgWrap.append(el("div", { className: "panel__row" }, [labeled(entity, input)]));
-    }
-  };
-  const imgToggle = el("button", { className: "link", textContent: hasAny ? "Hide image URLs" : "Add image URLs per entity" });
-  imgToggle.addEventListener("click", () => {
-    const opening = imgWrap.style.display === "none";
-    imgWrap.style.display = opening ? "" : "none";
-    imgToggle.textContent = opening ? "Hide image URLs" : "Add image URLs per entity";
-    if (opening) renderImageInputs();
-  });
-  if (hasAny) renderImageInputs();
-  pane.append(imgToggle, imgWrap);
+  // Entity images are sourced from the CSV alone (an auto-detected column, or
+  // manual entry on the mapping screen before the race is built) — no
+  // separate post-build editing surface here anymore. Correcting a URL means
+  // re-uploading or re-mapping, so the CSV stays the single source of truth.
 
   // Events: (period, text) rows rendered as captions during the race.
   pane.append(el("hr", { className: "panel__hr" }), el("p", { className: "panel__section", textContent: "Events" }));
@@ -1285,21 +1271,8 @@ function wire() {
     if (!$("export-menu").hidden && !$("export-menu").contains(e.target)) $("export-menu").hidden = true;
   });
 
-  $("btn-new").addEventListener("click", () => {
-    state.playback?.pause();
-    history.replaceState(null, "", location.pathname);
-    state.projectId = null;
-    state.name = "Untitled race";
-    state.parsed = null;
-    state.rawCSV = null;
-    state.pendingImages = {};
-    state.layout = structuredClone(LAYOUTS[0]);
-    state.settings = structuredClone(DEFAULT_SETTINGS);
-    state.theme = structuredClone(THEMES[0]);
-    state.branding = structuredClone(DEFAULT_BRANDING);
-    $("project-name").value = state.name;
-    show("empty");
-  });
+  $("hd-home").addEventListener("click", goToLanding);
+  $("btn-new").addEventListener("click", goToLanding);
 
   // empty screen
   const drop = $("drop");
