@@ -111,8 +111,9 @@ test("mapping screen offers image URL entry when no image column exists, and it 
   await page.getByRole("button", { name: "Build race" }).click();
   await expect(page.locator("#screen-stage")).toHaveClass(/screen--active/, { timeout: 5000 });
   await page.getByRole("button", { name: "Customize" }).click();
-  // Data is the default-active tab already — no need to click it.
-  await page.getByText("Add image URLs per entity").click();
+  // Data is the default-active tab already. The image section starts
+  // EXPANDED here (button reads "Hide image URLs"), because the URL entered
+  // during mapping already merged into the dataset — no toggle click needed.
   await expect(page.locator("#panel-data input[value='https://flagcdn.com/w160/xx.png']")).toBeVisible();
 });
 
