@@ -8,7 +8,7 @@ const PRISTINE = "<!doctype html>\n" + document.documentElement.outerHTML;
 import { parseCSV, detectShape, normalize, temporalType, sniffProject, sniffJSONDataset, jsonToTable, usedHeaders, filterTable, toCSVText, toJSONText } from "./parse.js";
 import { precompute, frameState, Playback, EASINGS } from "./engine.js";
 import { Painter } from "./render.js";
-import { LAYOUTS, THEMES, DEFAULT_SETTINGS, DEFAULT_BRANDING, sampleCSV, SAMPLE_NAME } from "./builtins.js";
+import { LAYOUTS, THEMES, DEFAULT_SETTINGS, DEFAULT_BRANDING, TEMPLATES, sampleCSV, SAMPLE_NAME } from "./builtins.js";
 import { validateLayout, validateSettings, validateBranding, validateEvents, validateTheme, parseUserJSON, isHexColor, toSixDigitHex } from "./editors.js";
 import { migrateProject } from "./migrate.js";
 import { VERSION } from "./version.js";
@@ -1115,11 +1115,67 @@ function renderBrandPane() {
   );
 }
 
+/** Apply a template: Layout + Theme wholesale, Settings merged on top of
+ * current (so data-dependent fields like topN are left untouched). Built-in
+ * templates reference LAYOUTS/THEMES by index; custom (saved) templates
+ * carry the full objects directly. */
+function applyTemplate(tpl) {
+  const layout = typeof tpl.layout === "number" ? LAYOUTS[tpl.layout] : tpl.layout;
+  const theme = typeof tpl.theme === "number" ? THEMES[tpl.theme] : tpl.theme;
+  setLayout(validateLayout(structuredClone(layout)).layout);
+  setSettings(validateSettings({ ...state.settings, ...tpl.settings }).settings);
+  setTheme(validateTheme(structuredClone(theme)).theme); // last: re-renders this pane
+}
+
 function renderThemePane() {
   const pane = $("panel-theme");
   pane.textContent = "";
   const th = state.theme;
   const commit = () => setTheme(validateTheme(th).theme);
+
+  pane.append(el("p", { className: "panel__section", textContent: "Templates" }));
+  const tplSelect = el("select", { className: "sel" });
+  tplSelect.append(el("option", { value: "", textContent: "Choose a template…", selected: true }));
+  for (const t of TEMPLATES) tplSelect.append(el("option", { value: t.id, textContent: t.name }));
+  for (const t of store.listCustom("presets")) tplSelect.append(el("option", { value: t.id, textContent: `${t.name} (yours)` }));
+  const tplApply = el("button", { className: "btn", textContent: "Apply" });
+  tplApply.addEventListener("click", () => {
+    const tpl = TEMPLATES.find((t) => t.id === tplSelect.value) ?? store.listCustom("presets").find((t) => t.id === tplSelect.value);
+    if (!tpl) return toast("Pick a template first.");
+    applyTemplate(tpl);
+    toast(`Applied "${tpl.name}".`);
+  });
+  pane.append(el("div", { className: "panel__row--split" }, [el("div", {}, [tplSelect]), el("div", {}, [tplApply])]));
+
+  const tplName = el("input", { className: "field", placeholder: "Name this look…" });
+  const tplSave = el("button", { className: "btn btn--ghost", textContent: "Save current look as a template" });
+  tplSave.addEventListener("click", () => {
+    const name = tplName.value.trim();
+    if (!name) return toast("Give it a name first.");
+    const item = {
+      id: "u-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+      name,
+      layout: structuredClone(state.layout),
+      theme: structuredClone(state.theme),
+      settings: {
+        msPerPeriod: state.settings.msPerPeriod,
+        easing: state.settings.easing,
+        ghostBar: state.settings.ghostBar,
+        showSparkline: state.settings.showSparkline,
+        endPeriodPause: state.settings.endPeriodPause,
+        eventPause: state.settings.eventPause,
+      },
+    };
+    // Custom templates store full layout/theme OBJECTS (not LAYOUTS/THEMES
+    // indices, which only make sense for the built-ins) — applyCustomTemplate
+    // below handles both shapes.
+    const res = store.saveCustom("presets", item);
+    if (!res.ok) return toast("Couldn't save — local storage is full or unavailable.");
+    renderThemePane();
+    toast(`Saved "${name}" as a template.`);
+  });
+  pane.append(el("div", { className: "panel__row--split" }, [el("div", {}, [tplName]), el("div", {}, [tplSave])]));
+  pane.append(el("hr", { className: "panel__hr" }));
 
   const colorNames = {
     "--fr-bg": "Background",
@@ -1382,7 +1438,7 @@ async function embedImages(images) {
  * at the user's chosen speed) rather than reimplemented timing, so holds,
  * easing, and pauses are correct for free — the trade-off is that recording
  * takes real wall-clock time, same as any screen capture would. */
-async function exportWebM() {
+async function exportWebM({ aspect = "landscape" } = {}) {
   if (!state.dataset || !state.painter || !state.playback) return;
   const probe = document.createElement("canvas");
   if (typeof probe.captureStream !== "function" || typeof MediaRecorder === "undefined") {
@@ -1406,8 +1462,36 @@ async function exportWebM() {
     repaint();
   }
 
+  // Portrait mode renders into a SEPARATE svg at true 9:16 proportions rather
+  // than squeezing the live (landscape) one — the Painter's layout math is
+  // proportional and adapts to whatever box it's given, so a real portrait
+  // box produces a real portrait layout, not a distorted crop. The offscreen
+  // svg must be genuinely laid out (real CSS size, just positioned off past
+  // the viewport edge) — a display:none element reports a zero-size
+  // getBoundingClientRect(), which is exactly what Painter.resize() reads.
+  let offscreenSvg = null;
+  let offscreenPainter = null;
   const svg = $("stage-svg");
-  const rect = svg.getBoundingClientRect();
+  if (aspect === "portrait") {
+    offscreenSvg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    offscreenSvg.setAttribute("class", "stage__svg");
+    offscreenSvg.style.cssText = "position:fixed; top:0; left:-99999px; width:540px; height:960px;";
+    document.body.append(offscreenSvg);
+    offscreenPainter = new Painter(
+      offscreenSvg,
+      state.dataset,
+      structuredClone(state.layout),
+      state.settings,
+      structuredClone(state.theme),
+      state.branding,
+      state.events,
+      state.followedEntity
+    );
+    offscreenPainter.resize();
+  }
+  const captureSvg = offscreenSvg ?? svg;
+
+  const rect = captureSvg.getBoundingClientRect();
   const SCALE = 2; // sharper than 1x CSS pixels
   const W = Math.max(2, Math.round(rect.width * SCALE));
   const H = Math.max(2, Math.round(rect.height * SCALE));
@@ -1451,7 +1535,12 @@ async function exportWebM() {
     if (drawing) return; // an overlapping decode just skips a frame — imperceptible at 30fps
     drawing = true;
     try {
-      const clone = svg.cloneNode(true);
+      // The live playback's own onFrame only repaints the LIVE painter — the
+      // offscreen one has to be driven explicitly, reading the same clock.
+      if (offscreenPainter) {
+        offscreenPainter.paint(frameState(state.dataset, state.pre, state.settings, state.playback.t));
+      }
+      const clone = captureSvg.cloneNode(true);
       const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
       styleEl.textContent = cssText;
       clone.insertBefore(styleEl, clone.firstChild);
@@ -1513,6 +1602,7 @@ async function exportWebM() {
     state.dataset.images = originalImages;
     repaint();
   }
+  offscreenSvg?.remove();
 
   const blob = new Blob(chunks, { type: "video/webm" });
   download(`${safeName()}.webm`, blob, "video/webm");
@@ -1602,7 +1692,7 @@ function wire() {
   });
   $("btn-export-webm").addEventListener("click", () => {
     $("export-menu").hidden = true;
-    exportWebM();
+    exportWebM({ aspect: $("export-aspect").value });
   });
   document.addEventListener("click", (e) => {
     if (!$("export-menu").hidden && !$("export-menu").contains(e.target)) $("export-menu").hidden = true;

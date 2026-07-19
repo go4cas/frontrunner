@@ -172,6 +172,52 @@ test("WebM export with images completes without error (regression: images broke 
   expect(errors).toEqual([]);
 });
 
+test("applying a Template changes Layout and Theme together; saving a custom template works", async ({ page }) => {
+  await page.goto(DIST);
+  await page.getByText("Try the sample").click();
+  await page.getByRole("button", { name: "Build race" }).click();
+  await expect(page.locator("#screen-stage")).toHaveClass(/screen--active/, { timeout: 5000 });
+  await page.getByRole("button", { name: "Customize" }).click();
+  await page.getByRole("tab", { name: "Theme" }).click();
+
+  await page.locator("#panel-theme select").first().selectOption({ label: "Broadcast Bold" });
+  await page.getByRole("button", { name: "Apply" }).click();
+  await expect(page.locator("#sel-layout")).toHaveValue("broadcast");
+  await expect(page.locator("#sel-theme")).toHaveValue("signal");
+
+  await page.locator("#panel-theme input[placeholder='Name this look…']").fill("My Look");
+  await page.getByRole("button", { name: "Save current look as a template" }).click();
+  await expect(page.locator("#panel-theme select").first().locator("option", { hasText: "My Look" })).toHaveCount(1);
+});
+
+test("portrait (9:16) WebM export completes without error", async ({ page }) => {
+  await page.goto(DIST);
+  await page.setInputFiles("#file-input", {
+    name: "tiny.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("year,country,pop\n1990,A,1\n1990,B,2\n2000,A,3\n2000,B,4"),
+  });
+  await expect(page.locator("#screen-mapping")).toHaveClass(/screen--active/, { timeout: 5000 });
+  await page.getByRole("button", { name: "Build race" }).click();
+  await expect(page.locator("#screen-stage")).toHaveClass(/screen--active/, { timeout: 5000 });
+
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e));
+
+  await page.getByRole("button", { name: "Export" }).click();
+  await page.locator("#export-aspect").selectOption("portrait");
+  const [download] = await Promise.all([
+    page.waitForEvent("download", { timeout: 15000 }),
+    page.getByRole("button", { name: "Video (.webm)" }).click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/\.webm$/);
+  const path = await download.path();
+  expect(path).toBeTruthy();
+  expect(errors).toEqual([]);
+  // The offscreen portrait svg must clean up after itself.
+  await expect(page.locator("svg[style*='left:-99999px']")).toHaveCount(0);
+});
+
 test("trim-to-used-columns radio actually shrinks the exported raw payload", async ({ page }) => {
   await page.goto(DIST);
   const csv = "year,country,pop,unused1,unused2\n1990,A,1,x,y\n1990,B,2,x2,y2\n2000,A,3,x3,y3\n2000,B,4,x4,y4";

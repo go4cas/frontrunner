@@ -58,6 +58,37 @@ export const DEFAULT_BRANDING = {
   logoUrl: "",
 };
 
+// Templates bundle Layout + Theme + a curated subset of "look and feel"
+// Settings — deliberately NOT the whole Settings object. Fields like topN,
+// rankDirection, valueScale, valueFormat, periodLabelFormat, and axisScale
+// are properties of the DATA, not the look; a template shouldn't silently
+// override what someone already chose for their specific dataset. Applying
+// a template merges its `settings` on top of the current ones, so anything
+// it doesn't mention is left untouched.
+export const TEMPLATES = [
+  {
+    id: "classic",
+    name: "Classic Race",
+    layout: 0, // index into LAYOUTS
+    theme: 0, // index into THEMES
+    settings: { msPerPeriod: 1400, easing: "easeInOutCubic", ghostBar: "off", showSparkline: true, endPeriodPause: 0, eventPause: 1500 },
+  },
+  {
+    id: "broadcast-bold",
+    name: "Broadcast Bold",
+    layout: 2,
+    theme: 2,
+    settings: { msPerPeriod: 900, easing: "easeOutQuad", ghostBar: "median", showSparkline: true, endPeriodPause: 200, eventPause: 1500 },
+  },
+  {
+    id: "minimal-print",
+    name: "Minimal Print",
+    layout: 1,
+    theme: 1,
+    settings: { msPerPeriod: 1800, easing: "easeInOutCubic", ghostBar: "off", showSparkline: false, endPeriodPause: 0, eventPause: 1800 },
+  },
+];
+
 const FONT_DISPLAY = "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
 const FONT_MONO = "ui-monospace, 'SF Mono', 'Cascadia Mono', 'Roboto Mono', Menlo, monospace";
 

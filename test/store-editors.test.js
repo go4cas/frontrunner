@@ -1,7 +1,7 @@
 import { describe, expect, test, beforeEach } from "bun:test";
 import { validateLayout, validateSettings, validateEvents, validateBranding, validateTheme, parseUserJSON, isHexColor, toSixDigitHex } from "../src/editors.js";
 import { DEFAULT_SETTINGS } from "../src/builtins.js";
-import { LAYOUTS, THEMES } from "../src/builtins.js";
+import { LAYOUTS, THEMES, TEMPLATES } from "../src/builtins.js";
 import { FORMAT_VERSION } from "../src/migrate.js";
 
 // localStorage shim for store tests (Bun has no DOM storage).
@@ -226,6 +226,32 @@ describe("project store", () => {
   });
 });
 
+
+describe("built-in Templates", () => {
+  test("every template references a valid LAYOUTS/THEMES index and validates cleanly", () => {
+    for (const tpl of TEMPLATES) {
+      expect(LAYOUTS[tpl.layout]).toBeDefined();
+      expect(THEMES[tpl.theme]).toBeDefined();
+      const { errors: layoutErrors } = validateLayout(LAYOUTS[tpl.layout]);
+      const { errors: themeErrors } = validateTheme(THEMES[tpl.theme]);
+      const { settings, errors: settingsErrors } = validateSettings({ ...DEFAULT_SETTINGS, ...tpl.settings });
+      expect(layoutErrors).toEqual([]);
+      expect(themeErrors).toEqual([]);
+      expect(settingsErrors).toEqual([]);
+      // A template's settings must never smuggle in a data-dependent field —
+      // those belong to the dataset, not the look, and applying a template
+      // should never silently override them.
+      for (const dataDependent of ["topN", "rankDirection", "valueScale", "valueFormat", "periodLabelFormat", "axisScale"]) {
+        expect(dataDependent in tpl.settings).toBe(false);
+      }
+      expect(settings.msPerPeriod).toBe(tpl.settings.msPerPeriod);
+    }
+  });
+  test("template ids are unique", () => {
+    const ids = TEMPLATES.map((t) => t.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
 
 describe("validateSettings", () => {
   test("defaults fill and clamp", () => {

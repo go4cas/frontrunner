@@ -1,6 +1,6 @@
 # frontrunner — PRD
 
-**Version:** 3.13 · **Date:** 2026-07-19 · **Owner:** Cas (`go4cas`)
+**Version:** 3.14 · **Date:** 2026-07-19 · **Owner:** Cas (`go4cas`)
 **Status:** v1.6 closed (2026-07-17) · next phase: v2 (unscheduled)
 **Live:** https://centered-tangle-v266.here.now/ · **Repo:** `go4cas/frontrunner` (MIT)
 **One-liner:** A zero-dependency, single-file bar chart race builder that runs entirely in the browser. Drop in a CSV, watch the race, style it, brand it, share it as a link.
@@ -124,14 +124,14 @@ Three items from ongoing UX review, addressed in one round:
 - Background patterns on Theme — a `--fr-bg-image` var (None / Subtle glow / Dot grid / Custom image URL) in the Theme pane.
 - Bar palette overflow — `entityColor()` generates new colors via golden-angle hue rotation once the curated palette is exhausted, instead of repeating.
 
-### v2 — self-containment, motion, presets *(in progress — 3 of 5 shipped 2026-07-18)*
+### v2 — self-containment, motion, presets *(4 of 5 shipped 2026-07-18/19)*
 
 - [x] **JSON dataset input** — `jsonToTable()` flattens an array of objects into the same shape CSV parsing produces, so the entire detection/normalization pipeline works unchanged.
-- [x] **Raw-data inclusion is now a user choice** (Cas's ruling) — a Data-pane toggle, default on, controls whether the original CSV/JSON text rides in exports and share links. Applies uniformly to both formats via one `raw` envelope field.
+- [x] **Raw-data inclusion is now a user choice** (Cas's ruling) — a Data-pane toggle, default on, controls whether the original CSV/JSON text rides in exports and share links, with a further choice to trim to only the mapped columns. Applies uniformly to both formats via one `raw` envelope field.
 - [x] **Image embedding at snapshot export** — an opt-in checkbox (only shown when the dataset has images) fetches each unique URL and inlines it as base64; failures degrade to the original URL, non-fatal, reported afterward. Default is link-only (Cas's ruling): most exports are for online showcase/embed, where URLs are lighter and sufficient — embedding is for the person who explicitly needs the file to work fully offline.
-- [x] **WebM export** — canvas `captureStream()` + `MediaRecorder`, driven by the real `Playback` engine (forced non-looping) rather than reimplemented timing, so holds/easing/pauses are correct for free. Records at the live stage's current aspect ratio; a dedicated 9:16 portrait preset (the actual finding from the vertical-race research) is not yet built — worth a follow-up. Trade-off: recording takes real wall-clock time, same as screen capture would.
-- [ ] `timeScale: "proportional"`
-- [ ] **Templates** (bundled layout+theme+settings presets)
+- [x] **WebM export** — canvas `captureStream()` + `MediaRecorder`, driven by the real `Playback` engine (forced non-looping) rather than reimplemented timing, so holds/easing/pauses are correct for free. Images are unconditionally embedded before recording (the only working option — see incident 15) and a `<style>` carrying both the collected stylesheet and the theme's live CSS-variable values is injected into each captured frame (see incident 16), or text renders invisible. A **9:16 portrait preset** renders into a separate, genuinely-laid-out-but-off-screen `svg` + fresh `Painter` at true portrait proportions, rather than squeezing the live landscape view — the layout math is proportional and adapts to whatever box it's given. Trade-off: recording takes real wall-clock time, same as screen capture would.
+- [x] **Templates** — bundle Layout + Theme + a curated "look and feel" subset of Settings (motion pacing, ghost bar, sparkline — NOT topN/rankDirection/valueScale/valueFormat/periodLabelFormat/axisScale, which are properties of the data, not the look) into one click. Three built-ins (Classic Race, Broadcast Bold, Minimal Print); anyone can save their current look as a named custom template via the same `listCustom`/`saveCustom` mechanism Layout and Theme presets already use.
+- [ ] `timeScale: "proportional"` — the one item remaining
 
 ### Engineering (shipped with v1.5.7; proven throughout v1.6)
 
@@ -152,5 +152,8 @@ The two-layer guardrail is live: `test/smoke.dom.test.js` (happy-dom, executes t
 - **PRD 3.8:** v2 roadmap reframed — vertical column race dropped as unsupported by evidence (real feature elsewhere, no demonstrated demand); its one real insight (9:16 portrait canvas demand for social video) folded into WebM export's scope instead of standing alone
 
 The model survived three revisions and grew simpler each time — the usual sign it converged.
+
+- **Templates bundle "look" settings, not all settings (v1.9.5).** topN, rankDirection, valueScale, valueFormat, periodLabelFormat, and axisScale are properties of the *data*, not the look — a template that silently overrode them would clobber choices someone already made for their specific dataset. Applying a template merges its settings on top of current ones, touching only what it explicitly names.
+- **Portrait export renders into a separate real layout, not a squeezed one (v1.9.5).** Distorting the live landscape view into a 9:16 box would look visibly wrong; instead a genuinely-laid-out (if off-screen) svg at true portrait proportions gets its own fresh Painter instance, so the same proportional layout math that handles Classic/Dense/Broadcast at any size produces a real portrait composition rather than a stretched crop.
 
 Incident 16, added after PRD 3.12: **WebM text invisible — CSS doesn't travel with a serialized SVG (v1.9.3).** Fixing incident 15 immediately surfaced this: bars and image discs get their fill via inline attributes set directly by JS, so they survived serialization fine — but every text element (title, labels, axis ticks, legend, rank/value numbers) gets its color and font from CSS classes defined in the page's stylesheet, which never travels with a standalone-serialized `<svg>...</svg>` string. Text fell back to the SVG default (black fill), invisible against the dark theme — not literally missing, just unreadable. Deeper still: theme colors are CSS custom properties set as *inline styles* on `<html>` at runtime (`applyTheme()`), not literal CSS rules — so even copying the stylesheet via the CSSOM wouldn't give `var(--fr-text)` anything to resolve against. Fixed by injecting a `<style>` into a cloned SVG before each capture, containing both the collected stylesheet rules (via `document.styleSheets`, which works whether CSS is inline or external) and an explicit `:root { --fr-x: value; ... }` block built by enumerating `document.documentElement.style` directly. Lesson: serializing a live DOM subtree for rendering elsewhere loses everything that reached it via cascade rather than attribute — a class-based style and a CSS custom property are both invisible to `XMLSerializer` on their own.
