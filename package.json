@@ -1,6 +1,6 @@
 {
   "name": "frontrunner-app",
-  "version": "1.9.1",
+  "version": "1.9.2",
   "private": true,
   "description": "Bar chart races from a CSV. One HTML file, zero dependencies.",
   "type": "module",

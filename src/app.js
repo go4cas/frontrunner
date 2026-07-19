@@ -1390,6 +1390,22 @@ async function exportWebM() {
     return;
   }
 
+  // Cross-origin images referenced inside an SVG used as a canvas source are
+  // blocked by the browser regardless of any export setting (it's the same
+  // rule that stops a canvas being used to read pixels from another origin).
+  // They render fine live — this restriction only applies to the SVG→canvas
+  // step video capture requires — so images MUST be embedded as data URIs
+  // here, unconditionally, or they'd render broken in every video, always.
+  const originalImages = state.dataset.images;
+  let embedFailures = 0;
+  if (originalImages && Object.keys(originalImages).length) {
+    toast("Preparing images…", 60000);
+    const { images, failed } = await embedImages(originalImages);
+    state.dataset.images = images;
+    embedFailures = failed.length;
+    repaint();
+  }
+
   const svg = $("stage-svg");
   const rect = svg.getBoundingClientRect();
   const SCALE = 2; // sharper than 1x CSS pixels
@@ -1458,9 +1474,21 @@ async function exportWebM() {
   state.playback.loop = priorLoop;
   if (priorPlaying) state.playback.play();
 
+  // Restore the original URLs — the embedded versions were only ever needed
+  // for the canvas-capture step, not for the live view or other exports.
+  if (originalImages) {
+    state.dataset.images = originalImages;
+    repaint();
+  }
+
   const blob = new Blob(chunks, { type: "video/webm" });
   download(`${safeName()}.webm`, blob, "video/webm");
-  toast(`Video exported (${(blob.size / 1024 / 1024).toFixed(1)} MB).`);
+  toast(
+    embedFailures
+      ? `Video exported (${(blob.size / 1024 / 1024).toFixed(1)} MB) — but ${embedFailures} image${embedFailures > 1 ? "s" : ""} couldn't be fetched and will show as plain bars in the video.`
+      : `Video exported (${(blob.size / 1024 / 1024).toFixed(1)} MB).`,
+    embedFailures ? 6000 : 3200
+  );
 }
 
 function exportProjectFile() {

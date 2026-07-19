@@ -152,6 +152,26 @@ test("WebM video export records the race and triggers a download", async ({ page
   expect(path).toBeTruthy();
 });
 
+test("WebM export with images completes without error (regression: images broke in video via canvas cross-origin restriction)", async ({ page }) => {
+  await page.goto(DIST);
+  await page.getByText("Try the sample").click(); // the sample dataset has flag images
+  await page.getByRole("button", { name: "Build race" }).click();
+  await expect(page.locator("#screen-stage")).toHaveClass(/screen--active/, { timeout: 5000 });
+
+  const errors = [];
+  page.on("pageerror", (e) => errors.push(e));
+
+  await page.getByRole("button", { name: "Export" }).click();
+  const [download] = await Promise.all([
+    page.waitForEvent("download", { timeout: 30000 }),
+    page.getByRole("button", { name: "Video (.webm)" }).click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/\.webm$/);
+  const path = await download.path();
+  expect(path).toBeTruthy();
+  expect(errors).toEqual([]);
+});
+
 test("trim-to-used-columns radio actually shrinks the exported raw payload", async ({ page }) => {
   await page.goto(DIST);
   const csv = "year,country,pop,unused1,unused2\n1990,A,1,x,y\n1990,B,2,x2,y2\n2000,A,3,x3,y3\n2000,B,4,x4,y4";
