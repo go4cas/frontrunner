@@ -677,6 +677,7 @@ function setLayout(layout) {
   state.layout = layout;
   state.painter?.setLayout(layout);
   renderLayoutPane();
+  syncSelect("sel-layout", "layouts", layout);
   touch();
 }
 
@@ -698,6 +699,7 @@ function setTheme(theme) {
   state.theme = theme;
   applyTheme(theme);
   renderThemePane();
+  syncSelect("sel-theme", "themes", theme);
   autosave();
 }
 
