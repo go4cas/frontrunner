@@ -39,6 +39,7 @@ export const DEFAULT_SETTINGS = {
   msPerPeriod: 1400, // barThickness moved to Theme (--fr-bar-thickness) in v1.7.0
   easing: "easeInOutCubic",
   rankDirection: "top",
+  timeScale: "equal",
   valueScale: "linear",
   ghostBar: "off",
   showSparkline: true,

@@ -12,6 +12,35 @@ export const EASINGS = {
  * Precompute per-period ranks and maxima.
  * ranks[p*E+e] = 0-based rank of entity e in period p (absent entities rank last).
  */
+/** Parse a period label as a real point in time (UTC ms), or null if it
+ * doesn't look like a date. Deliberately self-contained (not shared with
+ * parse.js's temporalType) — engine.js stays a pure, dependency-free module. */
+function parsePeriodDate(label) {
+  const s = String(label);
+  let m;
+  if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/))) return Date.UTC(+m[1], +m[2] - 1, +m[3]);
+  if ((m = s.match(/^(\d{4})-(\d{2})$/))) return Date.UTC(+m[1], +m[2] - 1, 1);
+  if ((m = s.match(/^\d{4}$/))) return Date.UTC(+s, 0, 1);
+  return null;
+}
+
+/** Remap periods onto the SAME 0..(P-1) numeric range the playback clock
+ * already uses, but spaced proportional to real elapsed time rather than
+ * evenly — so a 40-year gap animates through proportionally longer than a
+ * 5-year one, while total race duration is unchanged. Returns null (meaning
+ * "fall back to equal spacing") when periods aren't all date-parseable, when
+ * there are fewer than 2, or when the real span is zero (degenerate). */
+function proportionalPositions(periods) {
+  if (periods.length < 2) return null;
+  const days = periods.map(parsePeriodDate);
+  if (days.some((d) => d === null)) return null;
+  for (let i = 1; i < days.length; i++) if (days[i] < days[i - 1]) return null; // must be chronological
+  const span = days[days.length - 1] - days[0];
+  if (span <= 0) return null;
+  const P = periods.length;
+  return days.map((d) => ((d - days[0]) / span) * (P - 1));
+}
+
 export function precompute(dataset) {
   const { periods, entities, values } = dataset;
   const P = periods.length;
@@ -48,7 +77,7 @@ export function precompute(dataset) {
     counts[p] = count;
     if (max > globalMax) globalMax = max;
   }
-  return { ranks, maxima, counts, globalMax };
+  return { ranks, maxima, counts, globalMax, proportionalPos: proportionalPositions(dataset.periods) };
 }
 
 /** Reverse a rank within the present-entry count for bottom-N mode; ranks at
@@ -102,16 +131,30 @@ function meanOf(arr) {
  */
 export function frameState(dataset, pre, settings, t) {
   const { periods, entities, values } = dataset;
-  const { ranks, maxima, counts } = pre;
+  const { ranks, maxima, counts, proportionalPos } = pre;
   const P = periods.length;
   const E = entities.length;
   const topN = Math.min(settings.topN, E);
   const ease = EASINGS[settings.easing] ?? EASINGS.easeInOutCubic;
 
   const tc = Math.max(0, Math.min(P - 1, t));
-  const i = P > 1 ? Math.min(Math.floor(tc), P - 2) : 0;
-  const j = P > 1 ? i + 1 : 0;
-  const q = P > 1 ? ease(tc - i) : 0;
+  // The clock (tc) is always a plain linear 0..(P-1) value — Playback's
+  // timing, holds, and looping never change. In proportional mode, that
+  // linear clock position is looked up against the real-time-spaced scale
+  // to find which two periods it currently falls between and how far.
+  const pos = settings.timeScale === "proportional" ? proportionalPos : null;
+  let i, j, frac;
+  if (pos && P > 1) {
+    i = 0;
+    while (i < P - 2 && pos[i + 1] <= tc) i++;
+    j = i + 1;
+    frac = pos[j] > pos[i] ? (tc - pos[i]) / (pos[j] - pos[i]) : 0;
+  } else {
+    i = P > 1 ? Math.min(Math.floor(tc), P - 2) : 0;
+    j = P > 1 ? i + 1 : 0;
+    frac = P > 1 ? tc - i : 0;
+  }
+  const q = P > 1 ? ease(frac) : 0;
 
   const bi = i * E;
   const bj = j * E;
@@ -137,7 +180,7 @@ export function frameState(dataset, pre, settings, t) {
     settings.axisScale === "fixed"
       ? Math.max(1e-9, pre.globalMax)
       : Math.max(1e-9, lerp(maxima[i], maxima[j], q));
-  const periodLabel = periods[Math.round(tc)];
+  const periodLabel = periods[frac < 0.5 ? i : j];
 
   // Ghost reference (median/mean), computed across ALL present entities that
   // period — not just the visible topN — so it stays meaningful even for

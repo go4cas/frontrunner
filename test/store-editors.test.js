@@ -53,6 +53,11 @@ describe("validateLayout", () => {
     expect(validateSettings({ ghostBar: "median" }).settings.ghostBar).toBe("median");
     expect(validateSettings({ ghostBar: "nonsense" }).settings.ghostBar).toBe("off");
   });
+  test("timeScale validates with sane default", () => {
+    expect(validateSettings({}).settings.timeScale).toBe("equal");
+    expect(validateSettings({ timeScale: "proportional" }).settings.timeScale).toBe("proportional");
+    expect(validateSettings({ timeScale: "nonsense" }).settings.timeScale).toBe("equal");
+  });
   test("rankDirection and valueScale validate with sane defaults", () => {
     expect(validateSettings({}).settings.rankDirection).toBe("top");
     expect(validateSettings({}).settings.valueScale).toBe("linear");

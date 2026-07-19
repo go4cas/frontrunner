@@ -930,6 +930,22 @@ function renderSettingsPane() {
     commit();
   });
   pane.append(el("div", { className: "panel__row--split" }, [labeled("Race direction", rankDir), labeled("Value scale", scale)]));
+  const timeScaleSel = el("select", { className: "sel" });
+  for (const [v, label] of [["equal", "Equal per period"], ["proportional", "Proportional to real time"]]) {
+    timeScaleSel.append(el("option", { value: v, textContent: label, selected: v === sg.timeScale }));
+  }
+  timeScaleSel.addEventListener("change", () => {
+    sg.timeScale = timeScaleSel.value;
+    commit();
+  });
+  pane.append(
+    el("div", { className: "panel__row" }, [labeled("Time pacing", timeScaleSel)]),
+    el("p", {
+      className: "drop__hint",
+      style: "margin: 2px 0 12px",
+      textContent: "Proportional needs every period to be a real date (year, year-month, or year-month-day) — it quietly falls back to equal spacing otherwise.",
+    })
+  );
   const ghost = el("select", { className: "sel" });
   for (const [v, label] of [["off", "Off"], ["median", "Median"], ["mean", "Mean"]]) {
     ghost.append(el("option", { value: v, textContent: label, selected: v === sg.ghostBar }));

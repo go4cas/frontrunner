@@ -405,3 +405,60 @@ describe("entityColor overflow", () => {
     expect(entityColor(10, palette)).toBe(entityColor(10, palette));
   });
 });
+
+
+describe("proportional time scale", () => {
+  test("irregular year gaps produce non-uniform proportionalPos (40yr gap spaced ~2x a 20yr gap)", () => {
+    const dataset = { periods: ["1960", "2000", "2020"], entities: ["A"], values: Float64Array.from([1, 2, 3]) };
+    const pre = precompute(dataset);
+    expect(pre.proportionalPos).not.toBe(null);
+    const [p0, p1, p2] = pre.proportionalPos;
+    expect(p0).toBe(0);
+    expect(p2).toBe(2); // same overall 0..(P-1) range as equal mode
+    // 1960->2000 is 40 years, 2000->2020 is 20 years: the first gap should
+    // take about twice the "index space" of the second.
+    expect(p1 - p0).toBeCloseTo(2 * (p2 - p1), 1);
+  });
+
+  test("supports year, year-month, and year-month-day labels", () => {
+    expect(precompute({ periods: ["2020", "2021"], entities: ["A"], values: Float64Array.from([1, 1]) }).proportionalPos).not.toBe(null);
+    expect(precompute({ periods: ["2020-01", "2020-06"], entities: ["A"], values: Float64Array.from([1, 1]) }).proportionalPos).not.toBe(null);
+    expect(precompute({ periods: ["2020-01-01", "2020-01-15"], entities: ["A"], values: Float64Array.from([1, 1]) }).proportionalPos).not.toBe(null);
+  });
+
+  test("falls back to null (equal spacing) for non-date, single, or non-chronological periods", () => {
+    expect(precompute({ periods: ["Q1", "Q2"], entities: ["A"], values: Float64Array.from([1, 1]) }).proportionalPos).toBe(null);
+    expect(precompute({ periods: ["2020"], entities: ["A"], values: Float64Array.from([1]) }).proportionalPos).toBe(null);
+    expect(precompute({ periods: ["2020", "1990"], entities: ["A"], values: Float64Array.from([1, 1]) }).proportionalPos).toBe(null);
+  });
+
+  test("frameState: proportional mode changes interpolation for irregular gaps vs equal mode", () => {
+    const dataset = { periods: ["1960", "2000", "2020"], entities: ["A"], values: Float64Array.from([0, 100, 200]) };
+    const pre = precompute(dataset);
+    const settingsEqual = { topN: 1, easing: "linear", timeScale: "equal" };
+    const settingsProp = { topN: 1, easing: "linear", timeScale: "proportional" };
+    // At clock t=1 (a full "index" of equal-spacing progress), proportional
+    // mode should read LOWER (since 1960->2000 is a bigger real gap than
+    // 2000->2020, less of it has "really" elapsed at index-position 1).
+    const equalVal = frameState(dataset, pre, settingsEqual, 1).bars[0].value;
+    const propVal = frameState(dataset, pre, settingsProp, 1).bars[0].value;
+    expect(equalVal).toBe(100); // equal mode: t=1 lands exactly on period 1 (2000)
+    expect(propVal).toBeLessThan(equalVal);
+  });
+
+  test("frameState: proportional mode falls back to equal-mode math when periods aren't dates", () => {
+    const dataset = { periods: ["Q1", "Q2", "Q3"], entities: ["A"], values: Float64Array.from([0, 100, 200]) };
+    const pre = precompute(dataset);
+    const settings = { topN: 1, easing: "linear", timeScale: "proportional" };
+    expect(frameState(dataset, pre, settings, 1).bars[0].value).toBe(100);
+    expect(frameState(dataset, pre, settings, 1).periodLabel).toBe("Q2");
+  });
+
+  test("frameState: periodLabel picks the nearer period correctly under proportional spacing", () => {
+    const dataset = { periods: ["1960", "2000", "2020"], entities: ["A"], values: Float64Array.from([0, 100, 200]) };
+    const pre = precompute(dataset);
+    const settings = { topN: 1, easing: "linear", timeScale: "proportional" };
+    expect(frameState(dataset, pre, settings, 0).periodLabel).toBe("1960");
+    expect(frameState(dataset, pre, settings, 2).periodLabel).toBe("2020");
+  });
+});

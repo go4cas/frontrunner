@@ -78,6 +78,7 @@ export function validateSettings(input) {
   };
 
   s.rankDirection = oneOf(s.rankDirection, ["top", "bottom"], d.rankDirection);
+  s.timeScale = oneOf(s.timeScale, ["equal", "proportional"], d.timeScale);
   s.valueScale = oneOf(s.valueScale, ["linear", "log"], d.valueScale);
   s.ghostBar = oneOf(s.ghostBar, ["off", "median", "mean"], d.ghostBar);
   s.showSparkline = Boolean(s.showSparkline ?? d.showSparkline);

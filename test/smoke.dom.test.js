@@ -175,6 +175,14 @@ describe("painter smoke (happy-dom)", () => {
     expect(svg.querySelector(".fr-ghost").style.display).toBe("none");
   });
 
+  test("proportional time scale renders without throwing on the (year-based) sample dataset", () => {
+    svg = makeSvg(document);
+    const settings = { ...structuredClone(DEFAULT_SETTINGS), timeScale: "proportional" };
+    const p = new Painter(svg, ds, structuredClone(LAYOUTS[0]), settings, structuredClone(THEMES[0]), {});
+    for (const t of [0, 2.5, 6]) p.paint(frameState(ds, pre, settings, t));
+    expect(visibleBars(svg).length).toBeGreaterThanOrEqual(10);
+  });
+
   test("bottom-N direction visibly reorders which entities lead", () => {
     svg = makeSvg(document);
     const settings = { ...structuredClone(DEFAULT_SETTINGS), rankDirection: "bottom" };
