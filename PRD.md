@@ -1,6 +1,6 @@
 # frontrunner — PRD
 
-**Version:** 3.12 · **Date:** 2026-07-19 · **Owner:** Cas (`go4cas`)
+**Version:** 3.13 · **Date:** 2026-07-19 · **Owner:** Cas (`go4cas`)
 **Status:** v1.6 closed (2026-07-17) · next phase: v2 (unscheduled)
 **Live:** https://centered-tangle-v266.here.now/ · **Repo:** `go4cas/frontrunner` (MIT)
 **One-liner:** A zero-dependency, single-file bar chart race builder that runs entirely in the browser. Drop in a CSV, watch the race, style it, brand it, share it as a link.

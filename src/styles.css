@@ -581,6 +581,12 @@ label.lbl {
   margin-top: 4px;
 }
 
+.menu__check--nested {
+  border-top: none;
+  margin-top: 0;
+  padding: 2px 12px 8px 28px;
+}
+
 .menu__check input { accent-color: var(--fr-accent); }
 
 /* ---------- saved projects ---------- */
