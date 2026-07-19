@@ -181,7 +181,7 @@ test("applying a Template changes Layout and Theme together; saving a custom tem
   await page.getByRole("tab", { name: "Theme" }).click();
 
   await page.locator("#panel-theme select").first().selectOption({ label: "Broadcast Bold" });
-  await page.getByRole("button", { name: "Apply" }).click();
+  await page.getByRole("button", { name: "Apply template" }).click();
   await expect(page.locator("#sel-layout")).toHaveValue("broadcast");
   await expect(page.locator("#sel-theme")).toHaveValue("signal");
 

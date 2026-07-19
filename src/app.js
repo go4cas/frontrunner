@@ -1138,7 +1138,7 @@ function renderThemePane() {
   tplSelect.append(el("option", { value: "", textContent: "Choose a template…", selected: true }));
   for (const t of TEMPLATES) tplSelect.append(el("option", { value: t.id, textContent: t.name }));
   for (const t of store.listCustom("presets")) tplSelect.append(el("option", { value: t.id, textContent: `${t.name} (yours)` }));
-  const tplApply = el("button", { className: "btn", textContent: "Apply" });
+  const tplApply = el("button", { className: "btn", textContent: "Apply template" });
   tplApply.addEventListener("click", () => {
     const tpl = TEMPLATES.find((t) => t.id === tplSelect.value) ?? store.listCustom("presets").find((t) => t.id === tplSelect.value);
     if (!tpl) return toast("Pick a template first.");
