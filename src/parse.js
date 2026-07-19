@@ -421,3 +421,43 @@ export function jsonToTable(records) {
   );
   return { headers, rows };
 }
+
+/** Which of the original headers are actually mapped, for either shape —
+ * preserves the ORIGINAL column order, not the mapping's own field order.
+ * Used to offer a smaller "only what I'm using" export of the raw source. */
+export function usedHeaders(headers, shapeInfo) {
+  const m = shapeInfo?.mapping ?? {};
+  const used = new Set(
+    shapeInfo?.shape === "wide"
+      ? [m.entity, ...(m.periods ?? []), m.image, m.category, m.color].filter(Boolean)
+      : [m.time, m.entity, m.value, m.image, m.category, m.color].filter(Boolean)
+  );
+  return headers.filter((h) => used.has(h));
+}
+
+/** Quote a CSV field only when it needs it (contains a comma, quote, or newline). */
+function csvField(v) {
+  const s = String(v ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+/** Serialize headers/rows back to CSV text — always comma-delimited,
+ * regardless of the original file's delimiter, for simplicity. */
+export function toCSVText(headers, rows) {
+  const lines = [headers.map(csvField).join(",")];
+  for (const r of rows) lines.push(r.map(csvField).join(","));
+  return lines.join("\n");
+}
+
+/** Serialize headers/rows back to a JSON array of objects (the same shape
+ * jsonToTable's input took), for the JSON-sourced trim-to-used-columns case. */
+export function toJSONText(headers, rows) {
+  return JSON.stringify(rows.map((r) => Object.fromEntries(headers.map((h, i) => [h, r[i]]))));
+}
+
+/** Filter a parsed table down to only the given headers (order preserved from
+ * `keepHeaders`), slicing each row's values to match. */
+export function filterTable(headers, rows, keepHeaders) {
+  const idxs = keepHeaders.map((h) => headers.indexOf(h));
+  return { headers: keepHeaders, rows: rows.map((r) => idxs.map((i) => r[i] ?? "")) };
+}

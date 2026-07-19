@@ -5,7 +5,7 @@
 // Captured before any DOM mutation — this is the source of snapshot exports.
 const PRISTINE = "<!doctype html>\n" + document.documentElement.outerHTML;
 
-import { parseCSV, detectShape, normalize, temporalType, sniffProject, sniffJSONDataset, jsonToTable } from "./parse.js";
+import { parseCSV, detectShape, normalize, temporalType, sniffProject, sniffJSONDataset, jsonToTable, usedHeaders, filterTable, toCSVText, toJSONText } from "./parse.js";
 import { precompute, frameState, Playback, EASINGS } from "./engine.js";
 import { Painter } from "./render.js";
 import { LAYOUTS, THEMES, DEFAULT_SETTINGS, DEFAULT_BRANDING, sampleCSV, SAMPLE_NAME } from "./builtins.js";
@@ -26,6 +26,7 @@ const state = {
   rawText: null, // original CSV or JSON dataset text; travels in the envelope so reopened projects can re-map
   rawKind: null, // "csv" | "json" — which parser to use when re-mapping
   includeRawData: true, // whether raw text actually gets included in exports/share links
+  rawTrimToUsed: false, // false = all original columns, true = only the mapped ones
   pendingImages: {}, // entity -> URL, entered on the mapping screen before Build race
   shapeInfo: null,
   dataset: null,
@@ -76,6 +77,19 @@ function applyTheme(theme) {
   repaint();
 }
 
+/** The raw source payload for exports/share links — full original text, or
+ * trimmed to only the currently-mapped columns, per the person's choice. */
+function rawPayload() {
+  if (!state.includeRawData || !state.rawText) return undefined;
+  if (!state.rawTrimToUsed || !state.parsed || !state.shapeInfo) {
+    return state.rawKind === "json" ? { json: state.rawText } : { csv: state.rawText };
+  }
+  const kept = usedHeaders(state.parsed.headers, state.shapeInfo);
+  const { headers, rows } = filterTable(state.parsed.headers, state.parsed.rows, kept);
+  const text = state.rawKind === "json" ? toJSONText(headers, rows) : toCSVText(headers, rows);
+  return state.rawKind === "json" ? { json: text } : { csv: text };
+}
+
 function currentProject() {
   return share.makeProject({
     name: state.name,
@@ -87,12 +101,7 @@ function currentProject() {
     branding: state.branding,
     events: validateEvents(state.events).events.length ? validateEvents(state.events).events : undefined,
     followed: state.followedEntity || undefined,
-    raw:
-      state.includeRawData && state.rawText
-        ? state.rawKind === "json"
-          ? { json: state.rawText }
-          : { csv: state.rawText }
-        : undefined,
+    raw: rawPayload(),
   });
 }
 
@@ -199,6 +208,7 @@ function handleText(text, filename = "") {
   state.rawText = text;
   state.rawKind = jsonRecords ? "json" : "csv";
   state.includeRawData = true;
+      state.rawTrimToUsed = false;
   state.pendingImages = {};
   state.projectId = null; // new data = new race; re-mapping keeps the id (see buildRace)
   state.shapeInfo = detectShape(parsed.headers, parsed.rows);
@@ -526,12 +536,14 @@ function openProject(rawProject, { assignNewId = false } = {}) {
       state.rawText = project.raw.json;
       state.rawKind = "json";
       state.includeRawData = true;
+      state.rawTrimToUsed = false;
       const records = sniffJSONDataset(state.rawText);
       state.parsed = records ? jsonToTable(records) : null;
     } else if (typeof project.raw?.csv === "string") {
       state.rawText = project.raw.csv;
       state.rawKind = "csv";
       state.includeRawData = true;
+      state.rawTrimToUsed = false;
       state.parsed = parseCSV(state.rawText); // re-mapping possible when raw travelled
     } else {
       state.rawText = null;
@@ -730,17 +742,57 @@ function renderDataPane() {
     rawToggle.addEventListener("change", () => {
       state.includeRawData = rawToggle.checked;
       autosave();
+      renderDataPane(); // reveal/hide the trim radios to match
     });
     pane.append(
       el("label", { className: "panel__check" }, [
         rawToggle,
         document.createTextNode(`Include original ${state.rawKind === "json" ? "JSON" : "CSV"} in exports & share links`),
-      ]),
+      ])
+    );
+
+    if (state.includeRawData && state.parsed) {
+      const allHeaders = state.parsed.headers;
+      const kept = usedHeaders(allHeaders, state.shapeInfo ?? {});
+      const trimmedText =
+        kept.length === allHeaders.length
+          ? state.rawText
+          : (() => {
+              const t = filterTable(allHeaders, state.parsed.rows, kept);
+              return state.rawKind === "json" ? toJSONText(t.headers, t.rows) : toCSVText(t.headers, t.rows);
+            })();
+      const kb = (n) => (n < 1024 ? `${n} B` : `${(n / 1024).toFixed(1)} KB`);
+
+      const radioAll = el("input", { type: "radio", name: "raw-trim", checked: !state.rawTrimToUsed });
+      const radioUsed = el("input", { type: "radio", name: "raw-trim", checked: state.rawTrimToUsed });
+      const onTrimChange = () => {
+        state.rawTrimToUsed = radioUsed.checked;
+        autosave();
+      };
+      radioAll.addEventListener("change", onTrimChange);
+      radioUsed.addEventListener("change", onTrimChange);
+
+      const wrap = el("div", { className: "panel__radiogroup" });
+      wrap.append(
+        el("label", { className: "panel__radio" }, [radioAll, document.createTextNode(`All ${allHeaders.length} columns (${kb(state.rawText.length)})`)]),
+        el("label", { className: "panel__radio" }, [
+          radioUsed,
+          document.createTextNode(
+            kept.length === allHeaders.length
+              ? `Only the columns I'm using — all of them are already used`
+              : `Only the ${kept.length} column${kept.length === 1 ? "" : "s"} I'm using (${kb(trimmedText.length)})`
+          ),
+        ])
+      );
+      pane.append(wrap);
+    }
+
+    pane.append(
       el("p", {
         className: "drop__hint",
         style: "margin: 2px 0 0",
         textContent: state.includeRawData
-          ? "Lets you re-map columns later and benefit from future auto-detection. Adds to file size."
+          ? "Lets you re-map columns later and benefit from future auto-detection. Trimming to used columns keeps re-mapping among those columns, but drops the rest for good."
           : "Smaller file — but re-mapping and future column detection won't be possible after this.",
       })
     );

@@ -1,6 +1,7 @@
 // Real-browser smoke: the layer that catches what no DOM shim can —
 // CSS cascade bugs (the [hidden] incident), click wiring, actual rendering.
 import { test, expect } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { VERSION } from "../src/version.js";
 
 const DIST = new URL("../dist/index.html", import.meta.url).href;
@@ -149,6 +150,28 @@ test("WebM video export records the race and triggers a download", async ({ page
   expect(download.suggestedFilename()).toMatch(/\.webm$/);
   const path = await download.path();
   expect(path).toBeTruthy();
+});
+
+test("trim-to-used-columns radio actually shrinks the exported raw payload", async ({ page }) => {
+  await page.goto(DIST);
+  const csv = "year,country,pop,unused1,unused2\n1990,A,1,x,y\n1990,B,2,x2,y2\n2000,A,3,x3,y3\n2000,B,4,x4,y4";
+  await page.setInputFiles("#file-input", { name: "extra.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
+  await expect(page.locator("#screen-mapping")).toHaveClass(/screen--active/, { timeout: 5000 });
+  await page.getByRole("button", { name: "Build race" }).click();
+  await expect(page.locator("#screen-stage")).toHaveClass(/screen--active/, { timeout: 5000 });
+
+  await page.getByRole("button", { name: "Customize" }).click();
+  await page.getByLabel(/^Only the \d+ columns? I'm using/).check();
+
+  await page.getByRole("button", { name: "Export" }).click();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByRole("button", { name: "Project file" }).click(),
+  ]);
+  const path = await download.path();
+  const project = JSON.parse(readFileSync(path, "utf8"));
+  expect(project.raw.csv).not.toContain("unused1");
+  expect(project.raw.csv).toContain("year,country,pop");
 });
 
 test("mapping screen offers image URL entry when no image column exists, and it lands on the built race", async ({ page }) => {

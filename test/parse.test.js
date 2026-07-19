@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseCSV, detectDelimiter, detectShape, normalize, parseValue, temporalType, sniffJSONDataset, jsonToTable } from "../src/parse.js";
+import { parseCSV, detectDelimiter, detectShape, normalize, parseValue, temporalType, sniffJSONDataset, jsonToTable, usedHeaders, filterTable, toCSVText, toJSONText } from "../src/parse.js";
 
 describe("delimiter detection", () => {
   test("comma", () => expect(detectDelimiter("a,b,c\n1,2,3")).toBe(","));
@@ -177,6 +177,51 @@ describe("JSON dataset input", () => {
     const ds = normalize(headers, rows, info);
     expect(ds.periods).toEqual(["1990", "2000"]);
     expect(ds.entities).toEqual(["Testland", "Otherland"]);
+  });
+});
+
+describe("raw-data column trimming", () => {
+  const headers = ["year", "country", "pop", "unused1", "unused2"];
+  const rows = [
+    ["1990", "China", "100", "x", "y"],
+    ["2000", "China", "200", "x2", "y2"],
+  ];
+  const longMapping = { shape: "long", mapping: { time: "year", entity: "country", value: "pop", image: null, category: null, color: null } };
+
+  test("usedHeaders keeps only mapped columns, in ORIGINAL order", () => {
+    expect(usedHeaders(headers, longMapping)).toEqual(["year", "country", "pop"]);
+  });
+
+  test("usedHeaders handles wide shape via the periods array", () => {
+    const wideHeaders = ["country", "1990", "2000", "notes"];
+    const wideMapping = { shape: "wide", mapping: { entity: "country", periods: ["1990", "2000"], image: null, category: null, color: null } };
+    expect(usedHeaders(wideHeaders, wideMapping)).toEqual(["country", "1990", "2000"]);
+  });
+
+  test("filterTable slices rows to match the kept headers", () => {
+    const kept = usedHeaders(headers, longMapping);
+    const { headers: h, rows: r } = filterTable(headers, rows, kept);
+    expect(h).toEqual(["year", "country", "pop"]);
+    expect(r).toEqual([
+      ["1990", "China", "100"],
+      ["2000", "China", "200"],
+    ]);
+  });
+
+  test("toCSVText round-trips through parseCSV", () => {
+    const csv = toCSVText(["year", "country"], [["1990", "China, Republic"], ["2000", 'Say "hi"']]);
+    const { headers: h, rows: r } = parseCSV(csv);
+    expect(h).toEqual(["year", "country"]);
+    expect(r[0]).toEqual(["1990", "China, Republic"]);
+    expect(r[1]).toEqual(["2000", 'Say "hi"']);
+  });
+
+  test("toJSONText round-trips through jsonToTable", () => {
+    const json = toJSONText(["year", "country"], [["1990", "China"]]);
+    const records = sniffJSONDataset(json);
+    const { headers: h, rows: r } = jsonToTable(records);
+    expect(h).toEqual(["year", "country"]);
+    expect(r).toEqual([["1990", "China"]]);
   });
 });
 
