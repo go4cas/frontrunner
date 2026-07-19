@@ -33,7 +33,7 @@ export function makeProject({ name, dataset, mapping, layout, settings, theme, b
     branding,
     ...(events?.length ? { events } : {}),
     ...(followed ? { followed } : {}),
-    raw, // optional { csv } — original text, enables re-mapping after reopen
+    raw, // optional { csv } or { json } — original text, enables re-mapping after reopen
   };
 }
 

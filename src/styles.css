@@ -568,6 +568,21 @@ label.lbl {
 
 .menu__item:hover { background: var(--fr-surface); }
 
+.menu__check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 4px;
+  font-size: 12px;
+  color: var(--fr-text-muted);
+  cursor: pointer;
+  user-select: none;
+  border-top: 1px solid var(--fr-border);
+  margin-top: 4px;
+}
+
+.menu__check input { accent-color: var(--fr-accent); }
+
 /* ---------- saved projects ---------- */
 
 .projects { width: min(620px, 100%); }

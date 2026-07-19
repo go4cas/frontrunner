@@ -381,3 +381,43 @@ export function sniffProject(text) {
     return null;
   }
 }
+
+/** Sniff whether text is a JSON dataset — an array of flat objects, e.g.
+ * `[{"country":"China","year":1960,"population":667070000}, ...]`. Returns
+ * null for anything else (project envelopes start with "{", not "["). */
+export function sniffJSONDataset(text) {
+  const t = text.trimStart();
+  if (!t.startsWith("[")) return null;
+  try {
+    const arr = JSON.parse(t);
+    return Array.isArray(arr) && arr.length > 0 && arr.every((r) => r && typeof r === "object" && !Array.isArray(r)) ? arr : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Flatten an array of objects into the same {headers, rows} shape parseCSV
+ * produces, so detectShape/normalize work on JSON input completely unchanged.
+ * Header order: keys from the first record, then any additional keys found
+ * later (in first-appearance order). Missing keys become "" for that row;
+ * values are stringified (numbers, booleans) to match CSV's all-string cells. */
+export function jsonToTable(records) {
+  const headers = [];
+  const seen = new Set();
+  for (const r of records) {
+    for (const k of Object.keys(r)) {
+      if (!seen.has(k)) {
+        seen.add(k);
+        headers.push(k);
+      }
+    }
+  }
+  const rows = records.map((r) =>
+    headers.map((h) => {
+      const v = r[h];
+      if (v === null || v === undefined) return "";
+      return typeof v === "string" ? v : String(v);
+    })
+  );
+  return { headers, rows };
+}

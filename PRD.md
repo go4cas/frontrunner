@@ -1,6 +1,6 @@
 # frontrunner — PRD
 
-**Version:** 3.8 · **Date:** 2026-07-18 · **Owner:** Cas (`go4cas`)
+**Version:** 3.9 · **Date:** 2026-07-18 · **Owner:** Cas (`go4cas`)
 **Status:** v1.6 closed (2026-07-17) · next phase: v2 (unscheduled)
 **Live:** https://centered-tangle-v266.here.now/ · **Repo:** `go4cas/frontrunner` (MIT)
 **One-liner:** A zero-dependency, single-file bar chart race builder that runs entirely in the browser. Drop in a CSV, watch the race, style it, brand it, share it as a link.
@@ -60,6 +60,9 @@ The word **template** is reserved for a future bundled preset (layout + theme + 
 - **Daily/sub-year periods needed no parser changes (v1.8.0).** Detection, sorting, and normalization already handled `YYYY-MM-DD` correctly in both shapes — confirmed with 30-day fixtures, not assumed. The only real gap was cosmetic: no day-level display format. Lesson: "is X supported" is sometimes answered by writing a test against existing code, not by writing new code.
 - **Palette overflow generates new colors instead of repeating (v1.8.0).** Beyond the curated palette, `entityColor()` now derives new hues via golden-angle rotation seeded from the palette's own average saturation/lightness — so extra entities look native to the theme rather than mismatched, and stay distinct from each other for a very long run (verified 20 deep with zero collisions) rather than silently duplicating a color meant for ~10 entries.
 - **Background patterns are one CSS-native theme var, not an asset system (v1.8.0).** `--fr-bg-image` holds a complete CSS value (a gradient, a repeating pattern, or a `url(...)`) rather than a structured config — keeps the zero-runtime-dependency stance intact and needs no new envelope fields beyond the existing generic theme-var pass-through.
+- **Raw-data inclusion is a user choice, not automatic (v1.9.0, Cas's ruling).** Reverses the earlier default-is-automatic stance: a person can now see exactly what riding-along data costs them and opt out, rather than the app deciding unconditionally. Defaults to on, preserving prior behavior for anyone who doesn't touch it.
+- **Image embedding defaults to link-only, not embedded (v1.9.0, Cas's ruling).** Most exports are for online showcase or embedding in a site, where a URL reference is lighter and sufficient; embedding is for the person who explicitly needs full offline independence. Opt-in, not opt-out — matches the "showcase vs. truly offline" distinction Cas drew directly.
+- **WebM recording reuses the live Playback engine rather than reimplementing timing (v1.9.0).** Driving the actual `Playback` object (holds, easing, pauses, chosen speed all included) and just capturing what's already rendered was less code and less risk than recomputing frame timing independently — the cost is that export takes real wall-clock time, which is an acceptable, expected trade-off for a screen-capture-style approach.
 - **Vertical column race, dropped from the roadmap (2026-07-18 research).** "Vertical" conflates two unrelated ideas. (1) Column orientation (bars growing upward) — confirmed real via Flourish and the Python `bar_chart_race` library, both offer it as a toggle — but nothing found suggests real demand for it; it reads as a checkbox feature, not something driving usage anywhere. (2) A 9:16 portrait video canvas — genuinely in demand (competitors like Flowi and Alien Art market it explicitly for TikTok/Reels; one source cites 90% higher mobile engagement for vertical video, Buffer 2025) — but this is a video-export detail, not a rendering mode, and is meaningless until WebM export exists at all. Decision: drop column-orientation as a standalone item; fold the 9:16 canvas preset into WebM export's scope instead of inventing a separate feature for it.
 
 ---
@@ -119,9 +122,14 @@ Three items from ongoing UX review, addressed in one round:
 - Background patterns on Theme — a `--fr-bg-image` var (None / Subtle glow / Dot grid / Custom image URL) in the Theme pane.
 - Bar palette overflow — `entityColor()` generates new colors via golden-angle hue rotation once the curated palette is exhausted, instead of repeating.
 
-### v2 — self-containment, motion, presets
+### v2 — self-containment, motion, presets *(in progress — 3 of 5 shipped 2026-07-18)*
 
-Base64 image/logo embedding at snapshot export only · WebM export via `captureStream()` + `MediaRecorder` (include a 9:16 portrait canvas preset alongside 16:9 — see decision log; this is the only piece of the "vertical" idea with real backing) · JSON dataset input · `timeScale: "proportional"` · **Templates** (bundled layout+theme+settings presets).
+- [x] **JSON dataset input** — `jsonToTable()` flattens an array of objects into the same shape CSV parsing produces, so the entire detection/normalization pipeline works unchanged.
+- [x] **Raw-data inclusion is now a user choice** (Cas's ruling) — a Data-pane toggle, default on, controls whether the original CSV/JSON text rides in exports and share links. Applies uniformly to both formats via one `raw` envelope field.
+- [x] **Image embedding at snapshot export** — an opt-in checkbox (only shown when the dataset has images) fetches each unique URL and inlines it as base64; failures degrade to the original URL, non-fatal, reported afterward. Default is link-only (Cas's ruling): most exports are for online showcase/embed, where URLs are lighter and sufficient — embedding is for the person who explicitly needs the file to work fully offline.
+- [x] **WebM export** — canvas `captureStream()` + `MediaRecorder`, driven by the real `Playback` engine (forced non-looping) rather than reimplemented timing, so holds/easing/pauses are correct for free. Records at the live stage's current aspect ratio; a dedicated 9:16 portrait preset (the actual finding from the vertical-race research) is not yet built — worth a follow-up. Trade-off: recording takes real wall-clock time, same as screen capture would.
+- [ ] `timeScale: "proportional"`
+- [ ] **Templates** (bundled layout+theme+settings presets)
 
 ### Engineering (shipped with v1.5.7; proven throughout v1.6)
 

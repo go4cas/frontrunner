@@ -140,6 +140,14 @@ describe("share codec", () => {
     expect(back.raw.csv).toBe(project.raw.csv);
   });
 
+  test("raw JSON dataset travels in the envelope and round-trips too", async () => {
+    const project = sampleProject();
+    project.raw = { json: '[{"year":1960,"country":"China","population":667000000}]' };
+    const { blob } = await encodeProject(project);
+    const back = await decodeProject(blob);
+    expect(back.raw.json).toBe(project.raw.json);
+  });
+
   test("absent raw stays absent (no undefined keys serialized)", async () => {
     const { blob } = await encodeProject(sampleProject());
     const back = await decodeProject(blob);

@@ -5,7 +5,7 @@
 // Captured before any DOM mutation — this is the source of snapshot exports.
 const PRISTINE = "<!doctype html>\n" + document.documentElement.outerHTML;
 
-import { parseCSV, detectShape, normalize, temporalType, sniffProject } from "./parse.js";
+import { parseCSV, detectShape, normalize, temporalType, sniffProject, sniffJSONDataset, jsonToTable } from "./parse.js";
 import { precompute, frameState, Playback, EASINGS } from "./engine.js";
 import { Painter } from "./render.js";
 import { LAYOUTS, THEMES, DEFAULT_SETTINGS, DEFAULT_BRANDING, sampleCSV, SAMPLE_NAME } from "./builtins.js";
@@ -23,7 +23,9 @@ const state = {
   screen: "empty",
   projectId: null,
   parsed: null, // { headers, rows } — live when re-mapping is possible
-  rawCSV: null, // original CSV text; travels in the envelope so reopened projects can re-map
+  rawText: null, // original CSV or JSON dataset text; travels in the envelope so reopened projects can re-map
+  rawKind: null, // "csv" | "json" — which parser to use when re-mapping
+  includeRawData: true, // whether raw text actually gets included in exports/share links
   pendingImages: {}, // entity -> URL, entered on the mapping screen before Build race
   shapeInfo: null,
   dataset: null,
@@ -85,7 +87,12 @@ function currentProject() {
     branding: state.branding,
     events: validateEvents(state.events).events.length ? validateEvents(state.events).events : undefined,
     followed: state.followedEntity || undefined,
-    raw: state.rawCSV ? { csv: state.rawCSV } : undefined,
+    raw:
+      state.includeRawData && state.rawText
+        ? state.rawKind === "json"
+          ? { json: state.rawText }
+          : { csv: state.rawText }
+        : undefined,
   });
 }
 
@@ -118,7 +125,8 @@ function goToLanding() {
   state.projectId = null;
   state.name = "Untitled race";
   state.parsed = null;
-  state.rawCSV = null;
+  state.rawText = null;
+  state.rawKind = null;
   state.pendingImages = {};
   state.layout = structuredClone(LAYOUTS[0]);
   state.settings = structuredClone(DEFAULT_SETTINGS);
@@ -180,13 +188,17 @@ function safeName() {
 function handleText(text, filename = "") {
   const proj = sniffProject(text);
   if (proj) return openProject(proj, { assignNewId: true });
-  const parsed = parseCSV(text);
+
+  const jsonRecords = sniffJSONDataset(text);
+  const parsed = jsonRecords ? jsonToTable(jsonRecords) : parseCSV(text);
   if (parsed.headers.length < 2 || parsed.rows.length === 0) {
-    toast("That doesn't look like a CSV — need a header row and at least one data row.");
+    toast(jsonRecords ? "That JSON array doesn't look like a dataset — need objects with at least 2 shared fields." : "That doesn't look like a CSV — need a header row and at least one data row.");
     return;
   }
   state.parsed = parsed;
-  state.rawCSV = text;
+  state.rawText = text;
+  state.rawKind = jsonRecords ? "json" : "csv";
+  state.includeRawData = true;
   state.pendingImages = {};
   state.projectId = null; // new data = new race; re-mapping keeps the id (see buildRace)
   state.shapeInfo = detectShape(parsed.headers, parsed.rows);
@@ -510,8 +522,22 @@ function openProject(rawProject, { assignNewId = false } = {}) {
     state.name = project.name ?? "Untitled race";
     state.dataset = share.hydrateDataset(project.dataset);
     state.shapeInfo = project.mapping;
-    state.rawCSV = typeof project.raw?.csv === "string" ? project.raw.csv : null;
-    state.parsed = state.rawCSV ? parseCSV(state.rawCSV) : null; // re-mapping possible when raw travelled
+    if (typeof project.raw?.json === "string") {
+      state.rawText = project.raw.json;
+      state.rawKind = "json";
+      state.includeRawData = true;
+      const records = sniffJSONDataset(state.rawText);
+      state.parsed = records ? jsonToTable(records) : null;
+    } else if (typeof project.raw?.csv === "string") {
+      state.rawText = project.raw.csv;
+      state.rawKind = "csv";
+      state.includeRawData = true;
+      state.parsed = parseCSV(state.rawText); // re-mapping possible when raw travelled
+    } else {
+      state.rawText = null;
+      state.rawKind = null;
+      state.parsed = null;
+    }
     state.layout = validateLayout(project.layout ?? LAYOUTS[0]).layout;
     state.settings = validateSettings(project.settings ?? DEFAULT_SETTINGS).settings;
     state.theme = validateTheme(project.theme ?? THEMES[0]).theme;
@@ -699,6 +725,26 @@ function renderDataPane() {
     }),
     el("p", { className: "panel__stat", innerHTML: `shape: <b>${ds.meta.shape ?? "?"}</b>` })
   );
+  if (state.rawText) {
+    const rawToggle = el("input", { type: "checkbox", checked: state.includeRawData });
+    rawToggle.addEventListener("change", () => {
+      state.includeRawData = rawToggle.checked;
+      autosave();
+    });
+    pane.append(
+      el("label", { className: "panel__check" }, [
+        rawToggle,
+        document.createTextNode(`Include original ${state.rawKind === "json" ? "JSON" : "CSV"} in exports & share links`),
+      ]),
+      el("p", {
+        className: "drop__hint",
+        style: "margin: 2px 0 0",
+        textContent: state.includeRawData
+          ? "Lets you re-map columns later and benefit from future auto-detection. Adds to file size."
+          : "Smaller file — but re-mapping and future column detection won't be possible after this.",
+      })
+    );
+  }
   const cats = [...new Set(Object.values(ds.categories ?? {}))];
   if (cats.length) {
     pane.append(el("p", { className: "panel__stat", innerHTML: `<b>${cats.length}</b> categories: ${cats.join(", ")}` }));
@@ -1244,26 +1290,160 @@ async function copyShareLink() {
   }
 }
 
+/** Fetch each unique image URL and convert to a base64 data URI. Failures
+ * (network, CORS) are non-fatal: that entity keeps its original URL, and the
+ * failure is reported afterward — embedding is a best-effort convenience,
+ * not a guarantee, since arbitrary third-party image hosts may block
+ * cross-origin fetches from a file:// or different-origin snapshot. */
+async function embedImages(images) {
+  const embedded = {};
+  const failed = [];
+  const urls = [...new Set(Object.values(images))];
+  const dataUriByUrl = new Map();
+  await Promise.all(
+    urls.map(async (url) => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(String(res.status));
+        const blob = await res.blob();
+        const dataUri = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        dataUriByUrl.set(url, dataUri);
+      } catch {
+        failed.push(url);
+      }
+    })
+  );
+  for (const [entity, url] of Object.entries(images)) {
+    embedded[entity] = dataUriByUrl.get(url) ?? url;
+  }
+  return { images: embedded, failed };
+}
+
+/** Records the live race as a WebM video: serializes the SVG to an image
+ * each frame, draws it onto a canvas, and feeds canvas.captureStream() into
+ * MediaRecorder. Driven by the real Playback engine (forced non-looping,
+ * at the user's chosen speed) rather than reimplemented timing, so holds,
+ * easing, and pauses are correct for free — the trade-off is that recording
+ * takes real wall-clock time, same as any screen capture would. */
+async function exportWebM() {
+  if (!state.dataset || !state.painter || !state.playback) return;
+  const probe = document.createElement("canvas");
+  if (typeof probe.captureStream !== "function" || typeof MediaRecorder === "undefined") {
+    toast("Video export needs a browser with MediaRecorder support — try a recent Chrome, Firefox, or Edge.");
+    return;
+  }
+
+  const svg = $("stage-svg");
+  const rect = svg.getBoundingClientRect();
+  const SCALE = 2; // sharper than 1x CSS pixels
+  const W = Math.max(2, Math.round(rect.width * SCALE));
+  const H = Math.max(2, Math.round(rect.height * SCALE));
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  const img = new Image();
+
+  let drawing = false;
+  async function drawFrame() {
+    if (drawing) return; // an overlapping decode just skips a frame — imperceptible at 30fps
+    drawing = true;
+    try {
+      const xml = new XMLSerializer().serializeToString(svg);
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
+      await img.decode();
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(img, 0, 0, W, H);
+    } catch {
+      /* transient decode failure: previous frame just holds one tick longer */
+    }
+    drawing = false;
+  }
+
+  const FPS = 30;
+  const mimeType = MediaRecorder.isTypeSupported("video/webm;codecs=vp9") ? "video/webm;codecs=vp9" : "video/webm";
+  const stream = canvas.captureStream(FPS);
+  const recorder = new MediaRecorder(stream, { mimeType });
+  const chunks = [];
+  recorder.ondataavailable = (e) => {
+    if (e.data.size) chunks.push(e.data);
+  };
+  const stopped = new Promise((resolve) => {
+    recorder.onstop = resolve;
+  });
+
+  const priorLoop = state.playback.loop;
+  const priorPlaying = state.playback.playing;
+  state.playback.pause();
+  state.playback.loop = false;
+  state.playback.seek(0);
+
+  toast("Recording video — this plays through the whole race in real time…", 600000);
+  recorder.start();
+  let rafId;
+  const tick = () => {
+    drawFrame();
+    rafId = requestAnimationFrame(tick);
+  };
+  tick();
+  state.playback.play();
+
+  await new Promise((resolve) => {
+    const check = () => (state.playback.playing ? setTimeout(check, 100) : resolve());
+    check();
+  });
+
+  cancelAnimationFrame(rafId);
+  await drawFrame(); // one last frame at the settled end state
+  recorder.stop();
+  await stopped;
+
+  state.playback.loop = priorLoop;
+  if (priorPlaying) state.playback.play();
+
+  const blob = new Blob(chunks, { type: "video/webm" });
+  download(`${safeName()}.webm`, blob, "video/webm");
+  toast(`Video exported (${(blob.size / 1024 / 1024).toFixed(1)} MB).`);
+}
+
 function exportProjectFile() {
   download(`${safeName()}.frontrunner.json`, JSON.stringify(currentProject(), null, 2));
 }
 
-function exportSnapshot() {
+async function exportSnapshot({ embedImagesFlag = false } = {}) {
   const marker = '<script type="module">';
   if (!PRISTINE.includes(marker)) {
     toast("Snapshot export needs the single-file build of frontrunner — this dev copy loads its script externally.");
     return;
+  }
+  const project = currentProject();
+  let embedFailures = 0;
+  if (embedImagesFlag && project.dataset.images && Object.keys(project.dataset.images).length) {
+    toast("Embedding images…", 60000);
+    const { images, failed } = await embedImages(project.dataset.images);
+    project.dataset.images = images;
+    embedFailures = failed.length;
   }
   // CLOSE is assembled via char codes so the sequence "</script" can never
   // appear in the emitted bundle — minifiers constant-fold string
   // concatenation and normalize "<\/" escapes, either of which would emit a
   // literal "</script" that terminates the inline <script> tag early.
   const CLOSE = String.fromCharCode(60, 47) + "script>";
-  const payload = JSON.stringify(currentProject()).replace(/<\//g, "<\\/");
+  const payload = JSON.stringify(project).replace(/<\//g, "<\\/");
   const inject = "<script>window.__FR_PROJECT__=" + payload + ";window.__FR_VIEWER__=true;" + CLOSE + "\n";
   const html = PRISTINE.replace(marker, () => inject + marker);
   download(`${safeName()}.race.html`, html, "text/html");
-  toast("Snapshot exported — a self-contained page that plays this race anywhere.");
+  toast(
+    embedFailures
+      ? `Exported — but ${embedFailures} image${embedFailures > 1 ? "s" : ""} couldn't be embedded (kept as a link instead); the source may block cross-origin fetches.`
+      : "Snapshot exported — a self-contained page that plays this race anywhere.",
+    embedFailures ? 6000 : 3200
+  );
 }
 
 /* ---------- wiring ---------- */
@@ -1297,6 +1477,7 @@ function wire() {
   $("btn-export").addEventListener("click", (e) => {
     e.stopPropagation();
     $("export-menu").hidden = !$("export-menu").hidden;
+    $("export-embed-row").hidden = !state.dataset || !Object.keys(state.dataset.images ?? {}).length;
   });
   $("btn-export-project").addEventListener("click", () => {
     $("export-menu").hidden = true;
@@ -1304,7 +1485,11 @@ function wire() {
   });
   $("btn-export-snapshot").addEventListener("click", () => {
     $("export-menu").hidden = true;
-    exportSnapshot();
+    exportSnapshot({ embedImagesFlag: $("export-embed-images").checked });
+  });
+  $("btn-export-webm").addEventListener("click", () => {
+    $("export-menu").hidden = true;
+    exportWebM();
   });
   document.addEventListener("click", (e) => {
     if (!$("export-menu").hidden && !$("export-menu").contains(e.target)) $("export-menu").hidden = true;

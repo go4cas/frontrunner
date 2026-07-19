@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { parseCSV, detectDelimiter, detectShape, normalize, parseValue, temporalType } from "../src/parse.js";
+import { parseCSV, detectDelimiter, detectShape, normalize, parseValue, temporalType, sniffJSONDataset, jsonToTable } from "../src/parse.js";
 
 describe("delimiter detection", () => {
   test("comma", () => expect(detectDelimiter("a,b,c\n1,2,3")).toBe(","));
@@ -138,6 +138,45 @@ describe("daily / sub-year periods", () => {
     const ds = normalize(headers, rows, info);
     expect(ds.periods[0]).toBe("2026-01-01");
     expect(ds.periods[29]).toBe("2026-01-30");
+  });
+});
+
+describe("JSON dataset input", () => {
+  test("sniffJSONDataset accepts an array of flat objects", () => {
+    const arr = sniffJSONDataset('[{"a":1,"b":2}]');
+    expect(arr).toEqual([{ a: 1, b: 2 }]);
+  });
+  test("sniffJSONDataset rejects a project envelope, arrays of arrays, and non-JSON", () => {
+    expect(sniffJSONDataset('{"frontrunner":4}')).toBe(null); // objects start with {, not [
+    expect(sniffJSONDataset("[[1,2],[3,4]]")).toBe(null); // rows must be objects, not arrays
+    expect(sniffJSONDataset("not json")).toBe(null);
+    expect(sniffJSONDataset("[]")).toBe(null); // empty array isn't a usable dataset
+  });
+
+  test("jsonToTable: header order is first-record keys, then later-discovered keys appended", () => {
+    const records = [
+      { year: 1960, country: "China", population: 667070000 },
+      { year: 1960, country: "India", population: 450547679, flag: "https://x/in.png" },
+    ];
+    const { headers, rows } = jsonToTable(records);
+    expect(headers).toEqual(["year", "country", "population", "flag"]);
+    expect(rows[0]).toEqual(["1960", "China", "667070000", ""]); // missing key -> ""
+    expect(rows[1]).toEqual(["1960", "India", "450547679", "https://x/in.png"]);
+  });
+
+  test("end to end: a JSON array of records detects and normalizes exactly like the equivalent CSV", () => {
+    const records = [
+      { year: 1990, country: "Testland", pop: 10 },
+      { year: 1990, country: "Otherland", pop: 5 },
+      { year: 2000, country: "Testland", pop: 20 },
+      { year: 2000, country: "Otherland", pop: 9 },
+    ];
+    const { headers, rows } = jsonToTable(records);
+    const info = detectShape(headers, rows);
+    expect(info.mapping).toEqual({ time: "year", entity: "country", value: "pop", image: null, category: null, color: null });
+    const ds = normalize(headers, rows, info);
+    expect(ds.periods).toEqual(["1990", "2000"]);
+    expect(ds.entities).toEqual(["Testland", "Otherland"]);
   });
 });
 

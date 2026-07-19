@@ -87,6 +87,70 @@ test("layout pane warns when two blocks share an anchor, clears when separated",
   await expect(page.locator(".panel__warn")).toHaveCount(0);
 });
 
+test("JSON dataset uploads and builds a race; include-raw-data toggle exists and is on by default", async ({ page }) => {
+  await page.goto(DIST);
+  const json = JSON.stringify([
+    { year: 1990, country: "Testland", pop: 10 },
+    { year: 1990, country: "Otherland", pop: 5 },
+    { year: 2000, country: "Testland", pop: 20 },
+    { year: 2000, country: "Otherland", pop: 9 },
+  ]);
+  await page.setInputFiles("#file-input", { name: "data.json", mimeType: "application/json", buffer: Buffer.from(json) });
+  await expect(page.locator("#screen-mapping")).toHaveClass(/screen--active/, { timeout: 5000 });
+  await page.getByRole("button", { name: "Build race" }).click();
+  await expect(page.locator("#screen-stage")).toHaveClass(/screen--active/, { timeout: 5000 });
+
+  await page.getByRole("button", { name: "Customize" }).click();
+  const rawToggle = page.locator("#panel-data input[type=checkbox]").first();
+  await expect(rawToggle).toBeChecked();
+});
+
+test("export menu shows the embed-images checkbox only when the dataset has images", async ({ page }) => {
+  await page.goto(DIST);
+  // Sample dataset has flags -> checkbox should appear.
+  await page.getByText("Try the sample").click();
+  await page.getByRole("button", { name: "Build race" }).click();
+  await expect(page.locator("#screen-stage")).toHaveClass(/screen--active/, { timeout: 5000 });
+  await page.getByRole("button", { name: "Export" }).click();
+  await expect(page.locator("#export-embed-row")).toBeVisible();
+  await page.keyboard.press("Escape");
+
+  // A dataset with no image column -> checkbox should stay hidden.
+  await page.locator("#hd-home").click();
+  await page.setInputFiles("#file-input", {
+    name: "noimg.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("year,country,pop\n1990,A,1\n1990,B,2\n2000,A,3\n2000,B,4"),
+  });
+  await expect(page.locator("#screen-mapping")).toHaveClass(/screen--active/, { timeout: 5000 });
+  await page.getByRole("button", { name: "Build race" }).click();
+  await expect(page.locator("#screen-stage")).toHaveClass(/screen--active/, { timeout: 5000 });
+  await page.getByRole("button", { name: "Export" }).click();
+  await expect(page.locator("#export-embed-row")).toBeHidden();
+});
+
+test("WebM video export records the race and triggers a download", async ({ page }) => {
+  await page.goto(DIST);
+  // A tiny 2-period dataset keeps the real-time recording short for CI.
+  await page.setInputFiles("#file-input", {
+    name: "tiny.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("year,country,pop\n1990,A,1\n1990,B,2\n2000,A,3\n2000,B,4"),
+  });
+  await expect(page.locator("#screen-mapping")).toHaveClass(/screen--active/, { timeout: 5000 });
+  await page.getByRole("button", { name: "Build race" }).click();
+  await expect(page.locator("#screen-stage")).toHaveClass(/screen--active/, { timeout: 5000 });
+
+  await page.getByRole("button", { name: "Export" }).click();
+  const [download] = await Promise.all([
+    page.waitForEvent("download", { timeout: 15000 }),
+    page.getByRole("button", { name: "Video (.webm)" }).click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/\.webm$/);
+  const path = await download.path();
+  expect(path).toBeTruthy();
+});
+
 test("mapping screen offers image URL entry when no image column exists, and it lands on the built race", async ({ page }) => {
   await page.goto(DIST);
   const csv = "year,country,pop\n1990,Testland,10\n1990,Otherland,5\n2000,Testland,20\n2000,Otherland,9";
