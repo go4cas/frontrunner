@@ -4,3 +4,5 @@ node_modules/
 .herenow/
 test-results/
 playwright-report/
+*.patch
+*.patch
