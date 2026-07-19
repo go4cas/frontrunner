@@ -1418,11 +1418,44 @@ async function exportWebM() {
   const img = new Image();
 
   let drawing = false;
+  // Theme colors are CSS custom properties applied via inline style on <html>
+  // at runtime (see applyTheme()) — they're not literal CSS rules, so
+  // document.styleSheets never sees them, and every var(--fr-text) etc. in
+  // the copied stylesheet would have nothing to resolve against without this.
+  let varsCSS = ":root{";
+  const rootStyle = document.documentElement.style;
+  for (let i = 0; i < rootStyle.length; i++) {
+    const prop = rootStyle[i];
+    if (prop.startsWith("--")) varsCSS += `${prop}:${rootStyle.getPropertyValue(prop)};`;
+  }
+  varsCSS += "}\n";
+
+  // Text elements get their color/font from CSS classes (.fr-label, .fr-title,
+  // axis ticks, legend labels, etc.) — bars and image discs use inline `fill`
+  // attributes instead, which is why only text goes invisible without this.
+  // A serialized SVG carries none of the page's external CSS, so text falls
+  // back to the SVG default (black fill) — invisible on a dark theme, not
+  // actually missing. Collecting once via the CSSOM works whether the app's
+  // CSS is an inline <style> (the built single-file case) or an external
+  // stylesheet (served in dev), and only needs doing once per export.
+  let cssText = varsCSS;
+  for (const sheet of document.styleSheets) {
+    try {
+      for (const rule of sheet.cssRules) cssText += rule.cssText + "\n";
+    } catch {
+      /* a cross-origin sheet we can't read — irrelevant to our own app styles */
+    }
+  }
+
   async function drawFrame() {
     if (drawing) return; // an overlapping decode just skips a frame — imperceptible at 30fps
     drawing = true;
     try {
-      const xml = new XMLSerializer().serializeToString(svg);
+      const clone = svg.cloneNode(true);
+      const styleEl = document.createElementNS("http://www.w3.org/2000/svg", "style");
+      styleEl.textContent = cssText;
+      clone.insertBefore(styleEl, clone.firstChild);
+      const xml = new XMLSerializer().serializeToString(clone);
       img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml);
       await img.decode();
       ctx.clearRect(0, 0, W, H);
